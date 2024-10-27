@@ -1,5 +1,8 @@
 import numpy as np
 from stl import mesh
+import numpy.typing as npt
+from typing import Union, Tuple, Optional, List
+import matplotlib.pyplot as plt
 
 
 UNIT_THICKNESS = 5 # mm
@@ -13,6 +16,13 @@ THIN_LINE_HEIGHT = .5 # mm
 DOT_DIAMETER = 1.5 # mm
 DOT_HEIGHT = DOT_DIAMETER / 2 # mm
 DOT_SEPARATION = 2.3 # mm
+
+
+    
+def normalize(v: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    """Normalize a vector."""
+    norm = np.linalg.norm(v)
+    return v if norm == 0 else v / norm
 
 
 def create_cube(corner1:np.ndarray, corner2:np.ndarray) ->mesh.Mesh:
@@ -244,10 +254,16 @@ def create_half_cylinder_path(points: np.ndarray, thickness: float, height: floa
         
         else:
             in_vector = points[i] - points[i-1]
+            in_vector = in_vector / np.linalg.norm(in_vector)
             out_vector = points[i+1] - points[i]
+            out_vector = out_vector / np.linalg.norm(out_vector)
 
             perp_vector2 = out_vector - in_vector
             perp_vector2 = perp_vector2 / np.linalg.norm(perp_vector2)
+
+            if np.allclose(normalize(np.cross(in_vector, out_vector)), [0, 0, 1]):
+                perp_vector2 *= -1
+
 
         for k in range(resolution + 1):
             theta = np.pi/2 - np.pi * (k / resolution)  # Half-circle (0 to -pi)
@@ -299,99 +315,162 @@ def create_half_cylinder_path(points: np.ndarray, thickness: float, height: floa
 
     return half_cylinder
 
-def create_curved_extrusion(points: np.ndarray, diameter: float, 
-                            circular_resolution: int = 20, path_resolution: int = 10) -> mesh.Mesh:
+def fillet_path(
+    path: npt.NDArray[np.float64],
+    fillet_resolution: int,
+    radius: float = 1.0
+) -> npt.NDArray[np.float64]:
     """
-    Creates an STL mesh of a shape formed by extruding a circular cross-section along a curved path.
-
+    Smooths corners in a 3D path by replacing corner points with circular fillets.
+    
     Args:
-        points (np.ndarray): An array of 3D points defining the path (shape: [N, 3]).
-        diameter (float): The diameter of the circular cross-section.
-        circular_resolution (int): Number of subdivisions around the circular cross-section.
-        path_resolution (int): Number of subdivisions along the path.
+        path: Nx3 numpy array containing 3D points defining the path
+        fillet_resolution: Number of points to use for each fillet
+        radius: Radius of the fillet curves (default: 1.0)
     
     Returns:
-        mesh.Mesh: The curved extrusion as an STL mesh object.
+        Smoothed path as an Mx3 numpy array where M depends on the number of corners
+        and fillet_resolution
     """
-    # Ensure points is a 2D numpy array with shape [N, 3]
-    assert points.ndim == 2 and points.shape[1] == 3, "Points must be a 2D numpy array of shape [N, 3]"
+    if len(path) < 3:
+        return path
     
-    # Calculate radius from diameter
-    radius = diameter / 2
-    num_points = len(points)
-
-    # Generate vertices for the circular cross-section
-    circular_vertices = []
-    for j in range(circular_resolution):
-        theta = (2 * np.pi) * (j / circular_resolution)
-        x = radius * np.cos(theta)
-        y = radius * np.sin(theta)
-        circular_vertices.append(np.array([x, y, 0]))  # Circular vertices in the XY plane
-    circular_vertices = np.array(circular_vertices)
-
-    # Initialize lists for the final vertices and faces
-    vertices = []
-    faces = []
-
-    # Calculate tangent vectors along the path and generate the extruded shape
-    for i in range(num_points - 1):
-        # Current and next point
-        p1 = points[i]
-        p2 = points[i + 1]
+    def create_fillet(
+        p1: npt.NDArray[np.float64],
+        corner: npt.NDArray[np.float64],
+        p2: npt.NDArray[np.float64]
+    ) -> npt.NDArray[np.float64]:
+        """Create points for a circular fillet at a corner."""
+        # Get directions from corner to adjacent points
+        v1 = normalize(p1 - corner)
+        v2 = normalize(p2 - corner)
         
-        # Calculate the direction of the path segment
-        direction = p2 - p1
-        length = np.linalg.norm(direction)
-        if length == 0:
-            continue
-        direction = direction / length  # Normalize
-
-        # Calculate the perpendicular vectors to orient the circular cross-section
-        if np.allclose(direction, [0, 0, 1]):
-            perp1 = np.array([1, 0, 0])  # Arbitrary perpendicular
-        else:
-            perp1 = np.cross(direction, [0, 0, 1])
-            perp1 /= np.linalg.norm(perp1)  # Normalize
-        perp2 = np.cross(direction, perp1)  # Get the second perpendicular
-
-        # Add circular cross-section vertices for the current segment
-        for k in range(circular_resolution):
-            vertex = p1 + circular_vertices[k][0] * perp1 + circular_vertices[k][1] * perp2
-            vertices.append(vertex)
-
-        # Create faces between the current and next segments
-        if i < num_points - 2:  # Avoid going out of bounds
-            for k in range(circular_resolution):
-                a = i * circular_resolution + k
-                b = a + circular_resolution
-                c = (a + 1) % circular_resolution + (i * circular_resolution)
-                d = (b + 1) % circular_resolution + ((i + 1) * circular_resolution)
-
-                faces.append([a, b, c])
-                faces.append([c, b, d])
-
-    # Convert to numpy arrays for vertices and faces
-    vertices = np.array(vertices)
-    faces = np.array(faces)
-
-    # Initialize the mesh and set up the vectors for each face
-    curved_extrusion = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
-    for i, f in enumerate(faces):
-        for j in range(3):
-            curved_extrusion.vectors[i][j] = vertices[f[j]]
+        # Angle between vectors
+        angle = np.arccos(np.clip(np.dot(v1, v2), -1.0, 1.0))
+        
+        # Calculate tangent points
+        tan_dist = radius / np.tan(angle / 2)
+        t1 = corner + v1 * tan_dist
+        t2 = corner + v2 * tan_dist
+        
+        # Calculate center of fillet circle
+        bisector = normalize(v1 + v2)
+        center = corner + bisector * (radius / np.sin(angle / 2))
+        
+        # Create rotation matrix around the axis perpendicular to the plane
+        axis = -np.cross(v1, v2)
+        axis = normalize(axis)
+        
+        # Generate points along the fillet
+        fillet_points = []
+        for i in range(fillet_resolution):
+            t = i / (fillet_resolution - 1)
+            # Angle for this point
+            current_angle = t * (np.pi - angle)
+            
+            # Create rotation matrix using Rodrigues' rotation formula
+            K = np.array([
+                [0, -axis[2], axis[1]],
+                [axis[2], 0, -axis[0]],
+                [-axis[1], axis[0], 0]
+            ])
+            R = (np.eye(3) + np.sin(current_angle) * K + 
+                 (1 - np.cos(current_angle)) * np.matmul(K, K))
+            
+            # Rotate initial vector to create fillet point
+            initial_vec = normalize(t1 - center)
+            rotated = np.dot(R, initial_vec)
+            point = center + rotated * radius
+            fillet_points.append(point)
+            
+        return np.array(fillet_points)
     
-    return curved_extrusion
+    # Generate smoothed path
+    smoothed_points = []
+    smoothed_points.append(path[0])  # Add first point
+    
+    for i in range(1, len(path) - 1):
+        p1 = path[i - 1]
+        corner = path[i]
+        p2 = path[i + 1]
+        
+        # Create fillet for this corner
+        fillet = create_fillet(p1, corner, p2)
+        smoothed_points.extend(fillet)
+    
+    smoothed_points.append(path[-1])  # Add last point
+    
+    return np.array(smoothed_points)
 
+def plot_3d_path(
+    path: npt.NDArray[np.float64],
+    show_points: bool = True,
+    point_size: float = 50,
+    line_width: float = 1,
+    title: str = "3D Path",
+    fig_size: tuple[int, int] = (10, 8)
+) -> None:
+    """
+    Visualize a 3D path using matplotlib.
+    
+    Args:
+        path: Nx3 numpy array containing 3D points defining the path
+        show_points: Whether to show points along the path (default: True)
+        point_size: Size of points if shown (default: 50)
+        line_width: Width of the path line (default: 1)
+        title: Plot title (default: "3D Path")
+        fig_size: Figure size in inches (default: (10, 8))
+    """
+    # Create figure and 3D axes
+    fig = plt.figure(figsize=fig_size)
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # Extract x, y, z coordinates
+    x, y, z = path.T
+    
+    # Plot the path as a line
+    ax.plot(x, y, z, '-', linewidth=line_width, color='blue', zorder=1)
+    
+    # Optionally show points
+    if show_points:
+        ax.scatter(x, y, z, s=point_size, color='red', zorder=2)
+    
+    # Set labels and title
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_title(title)
+    
+    # Make the plot more visually appealing
+    ax.grid(True)
+    
+    # Set equal scaling for all axes
+    max_range = np.array([x.max()-x.min(), y.max()-y.min(), z.max()-z.min()]).max() / 2.0
+    mid_x = (x.max()+x.min()) * 0.5
+    mid_y = (y.max()+y.min()) * 0.5
+    mid_z = (z.max()+z.min()) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+    
+    plt.show()
 
 shapes = []
 
 shapes.append(create_cube(np.array([0, 0, -UNIT_THICKNESS]), np.array([UNIT_WIDTH, UNIT_HEIGHT, 0])))
 shapes.append(create_hemisphere(np.array([2, 2, 0]), DOT_DIAMETER, DOT_HEIGHT))
-# shapes.append(create_half_cylinder(np.array([UNIT_WIDTH, 0, 0]), np.array([0, UNIT_HEIGHT, 0]), THICK_LINE_WIDTH))
-shapes.append(create_half_cylinder_path(np.array([
-    [UNIT_WIDTH, 0, 0],
+
+path = np.array([
+    [UNIT_WIDTH, UNIT_HEIGHT, 0],
+    [0, 0, 0],
     [0, UNIT_HEIGHT, 0],
-    [UNIT_WIDTH, UNIT_HEIGHT*2, 0]]), THICK_LINE_WIDTH, THICK_LINE_HEIGHT))
+    [UNIT_WIDTH, UNIT_HEIGHT*2, 0],
+    [UNIT_WIDTH, UNIT_HEIGHT*3, 0]
+])
+smoothed_path = fillet_path(path, 10, radius=THICK_LINE_WIDTH/2)
+# plot_3d_path(path)
+# plot_3d_path(smoothed_path)
+shapes.append(create_half_cylinder_path(smoothed_path, THICK_LINE_WIDTH, THICK_LINE_HEIGHT))
 
 
 combined = mesh.Mesh(np.concatenate([shape.data for shape in shapes]))
