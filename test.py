@@ -57,7 +57,7 @@ def create_hemisphere(position: np.ndarray, diameter: float, height: float, thet
     Creates a hemisphere STL mesh.
     
     Args:
-        position (np.ndarray): A 2D numpy array (shape: [2]) representing the (x, y) position of the hemisphere's center. The z-coordinate is assumed to be 0.
+        position (np.ndarray): A 3D numpy array (shape: [3]) representing the (x, y) position of the hemisphere's center. The z-coordinate is assumed to be 0.
         diameter (float): The diameter of the hemisphere.
         theta_resolution (int): Number of horizontal subdivisions (around the hemisphere's circumference).
         phi_resolution (int): Number of vertical subdivisions (from top to bottom).
@@ -65,8 +65,8 @@ def create_hemisphere(position: np.ndarray, diameter: float, height: float, thet
     Returns:
         mesh.Mesh: The hemisphere as an STL mesh object.
     """
-    # Ensure position is a 2D numpy array with shape [2]
-    assert position.shape == (2,), "Position must be a 2D numpy array of shape [2]"
+    # Ensure position is a 3D numpy array with shape [3]
+    assert position.shape == (3,), "Position must be a 3D numpy array of shape [3]"
     
     # Calculate radius from diameter
     radius = diameter / 2
@@ -79,7 +79,7 @@ def create_hemisphere(position: np.ndarray, diameter: float, height: float, thet
             theta = (2 * np.pi) * (j / theta_resolution)
             x = position[0] + radius * np.cos(theta) * np.sin(phi)
             y = position[1] + radius * np.sin(theta) * np.sin(phi)
-            z = height * np.cos(phi)
+            z = position[2] + height * np.cos(phi)
             vertices.append([x, y, z])
     
     # Add the center point at the base (for closing the bottom of the hemisphere)
@@ -116,12 +116,282 @@ def create_hemisphere(position: np.ndarray, diameter: float, height: float, thet
     
     return hemisphere
 
+def create_half_cylinder(start: np.ndarray, end: np.ndarray, diameter: float, 
+                         theta_resolution: int = 20, length_resolution: int = 10) -> mesh.Mesh:
+    """
+    Creates a half-cylinder STL mesh oriented with its axis horizontally and its flat face on z=0.
+    
+    Args:
+        start (np.ndarray): 3D numpy array for the starting point of the cylinder axis.
+        end (np.ndarray): 3D numpy array for the ending point of the cylinder axis.
+        diameter (float): The diameter of the cylinder.
+        theta_resolution (int): Number of angular subdivisions around the circumference.
+        length_resolution (int): Number of subdivisions along the cylinder's length.
+    
+    Returns:
+        mesh.Mesh: The half-cylinder as an STL mesh object.
+    """
+
+    # Calculate radius and direction of the cylinder
+    radius = diameter / 2
+    axis_vector = end - start
+    length = np.linalg.norm(axis_vector)
+    axis_direction = axis_vector / length
+    
+    # Calculate perpendicular vectors for the circular cross-section orientation
+    if np.allclose(axis_direction, [0, 0, 1]):
+        perp_vector1 = np.array([1, 0, 0])
+    else:
+        perp_vector1 = np.cross(axis_direction, [0, 0, 1])
+        perp_vector1 /= np.linalg.norm(perp_vector1)
+    perp_vector2 = np.cross(axis_direction, perp_vector1)
+
+    # Generate vertices for the half-cylinder along its length
+    vertices = []
+    for i in range(length_resolution + 1):
+        t = i / length_resolution
+        center_point = start + t * axis_vector
+        for j in range(theta_resolution + 1):
+            theta = -np.pi * (j / theta_resolution)  # Half-circle (0 to -pi)
+            x = center_point + radius * (np.cos(theta) * perp_vector1 + np.sin(theta) * perp_vector2)
+            vertices.append(x)
+
+    # Generate vertices for the flat faces at both ends
+    base_vertices_start = []
+    base_vertices_end = []
+    for j in range(theta_resolution + 1):
+        theta = np.pi * (j / theta_resolution)
+        x_start = start + radius * (np.cos(theta) * perp_vector1 + np.sin(theta) * perp_vector2)
+        x_end = end + radius * (np.cos(theta) * perp_vector1 + np.sin(theta) * perp_vector2)
+        base_vertices_start.append(x_start)
+        base_vertices_end.append(x_end)
+    
+    # Add the center points at each flat face
+    center_start_index = len(vertices)
+    vertices.append(start)
+    center_end_index = len(vertices)
+    vertices.append(end)
+
+    # Create faces for the curved surface
+    faces = []
+    for i in range(length_resolution):
+        for j in range(theta_resolution):
+            a = i * (theta_resolution + 1) + j
+            b = a + theta_resolution + 1
+            c = a + 1
+            d = b + 1
+            faces.append([a, b, c])
+            faces.append([c, b, d])
+
+    # Create faces for the flat semi-circular faces
+    for j in range(theta_resolution):
+        a = j
+        b = j + 1
+        faces.append([a, b, center_start_index])  # Start flat face
+        a = (length_resolution * (theta_resolution + 1)) + j
+        b = a + 1
+        faces.append([a, center_end_index, b])  # End flat face
+
+    # Convert to numpy arrays for vertices and faces
+    vertices = np.array(vertices)
+    faces = np.array(faces)
+
+    # Initialize the mesh and set up the vectors for each face
+    half_cylinder = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(faces):
+        for j in range(3):
+            half_cylinder.vectors[i][j] = vertices[f[j]]
+    
+    return half_cylinder
+
+def create_half_cylinder_path(points: np.ndarray, thickness: float, height: float,
+                              resolution: int = 20, cap_style: str = "dome") -> mesh.Mesh:
+    """
+    Creates a half-cylinder STL mesh oriented with its axis horizontally and its flat face on z=0.
+    
+    Args:
+        points (np.ndarray): An array of 3D points defining the path (shape: [N, 3]).
+        thickness (float): The width of the semi-cylinder.
+        height (float): The height of the semi-cylinder.
+        theta_resolution (int): Number of angular subdivisions around the circumference.
+        cap_style (string): Type of end to put on the tube. Choose from "dome" or "none".
+    
+    Returns:
+        mesh.Mesh: The half-cylinder as an STL mesh object.
+    """
+    # Ensure points is a 2D numpy array with shape [N, 3]
+    assert points.ndim == 2 and points.shape[1] == 3, "Points must be a 2D numpy array of shape [N, 3]"
+    assert cap_style == "dome" or cap_style == "flat", f"Bad cap style: {cap_style}, Choose from \"dome\" or \"none\"."
+
+    radius = thickness / 2
+
+    # Generate vertices for the half-cylinder along its length
+    vertices = []
+    perp_vector1 = np.array([0, 0, 1])
+
+    for i in range(len(points)):
+        if i == 0 or i == len(points) - 1:
+            # Calculate radius and direction of the cylinder
+            if i == 0:
+                axis_vector = points[1] - points[0]
+            else:
+                axis_vector = points[-1] - points[-2]
+            length = np.linalg.norm(axis_vector)
+            axis_direction = axis_vector / length
+            
+            # Calculate perpendicular vectors for the circular cross-section orientation
+            perp_vector2 = np.cross(axis_direction, perp_vector1)
+        
+        else:
+            in_vector = points[i] - points[i-1]
+            out_vector = points[i+1] - points[i]
+
+            perp_vector2 = out_vector - in_vector
+            perp_vector2 = perp_vector2 / np.linalg.norm(perp_vector2)
+
+        for k in range(resolution + 1):
+            theta = np.pi/2 - np.pi * (k / resolution)  # Half-circle (0 to -pi)
+            x = points[i] + height * np.cos(theta) * perp_vector1 + radius * np.sin(theta) * perp_vector2
+            vertices.append(x)
+    
+    # Create faces for curved surface
+    faces = []
+    for i in range(len(points) - 1):
+        for j in range(resolution):
+            a = i * (resolution + 1) + j
+            b = a + (resolution + 1)
+            c = a + 1
+            d = b + 1
+            faces.append([a, b, c])
+            faces.append([c, b, d])
+
+    # # Add the center points at each flat face
+    # center_start_index = len(vertices)
+    # vertices.append(points[0])
+    # center_end_index = len(vertices)
+    # vertices.append(points[1])
+
+    # Create faces for the flat semi-circular faces
+    # for j in range(theta_resolution):
+    #     a = j
+    #     b = j + 1
+    #     faces.append([a, b, center_start_index])  # Start flat face
+    #     a = (theta_resolution + 1) + j
+    #     b = a + 1
+    #     faces.append([a, center_end_index, b])  # End flat face
+
+    # Convert to numpy arrays for vertices and faces
+    vertices = np.array(vertices)
+    faces = np.array(faces)
+
+    # Initialize the mesh and set up the vectors for each face
+    half_cylinder = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(faces):
+        for j in range(3):
+            half_cylinder.vectors[i][j] = vertices[f[j]]
+    
+    # Add caps
+    if cap_style == "dome":
+        start_cap = create_hemisphere(points[ 0], thickness, height, theta_resolution=2*resolution, phi_resolution=int(resolution/2))
+        end_cap =   create_hemisphere(points[-1], thickness, height, theta_resolution=2*resolution, phi_resolution=int(resolution/2))
+
+        half_cylinder = mesh.Mesh(np.concatenate([half_cylinder.data, start_cap.data, end_cap.data]))
+
+    return half_cylinder
+
+def create_curved_extrusion(points: np.ndarray, diameter: float, 
+                            circular_resolution: int = 20, path_resolution: int = 10) -> mesh.Mesh:
+    """
+    Creates an STL mesh of a shape formed by extruding a circular cross-section along a curved path.
+
+    Args:
+        points (np.ndarray): An array of 3D points defining the path (shape: [N, 3]).
+        diameter (float): The diameter of the circular cross-section.
+        circular_resolution (int): Number of subdivisions around the circular cross-section.
+        path_resolution (int): Number of subdivisions along the path.
+    
+    Returns:
+        mesh.Mesh: The curved extrusion as an STL mesh object.
+    """
+    # Ensure points is a 2D numpy array with shape [N, 3]
+    assert points.ndim == 2 and points.shape[1] == 3, "Points must be a 2D numpy array of shape [N, 3]"
+    
+    # Calculate radius from diameter
+    radius = diameter / 2
+    num_points = len(points)
+
+    # Generate vertices for the circular cross-section
+    circular_vertices = []
+    for j in range(circular_resolution):
+        theta = (2 * np.pi) * (j / circular_resolution)
+        x = radius * np.cos(theta)
+        y = radius * np.sin(theta)
+        circular_vertices.append(np.array([x, y, 0]))  # Circular vertices in the XY plane
+    circular_vertices = np.array(circular_vertices)
+
+    # Initialize lists for the final vertices and faces
+    vertices = []
+    faces = []
+
+    # Calculate tangent vectors along the path and generate the extruded shape
+    for i in range(num_points - 1):
+        # Current and next point
+        p1 = points[i]
+        p2 = points[i + 1]
+        
+        # Calculate the direction of the path segment
+        direction = p2 - p1
+        length = np.linalg.norm(direction)
+        if length == 0:
+            continue
+        direction = direction / length  # Normalize
+
+        # Calculate the perpendicular vectors to orient the circular cross-section
+        if np.allclose(direction, [0, 0, 1]):
+            perp1 = np.array([1, 0, 0])  # Arbitrary perpendicular
+        else:
+            perp1 = np.cross(direction, [0, 0, 1])
+            perp1 /= np.linalg.norm(perp1)  # Normalize
+        perp2 = np.cross(direction, perp1)  # Get the second perpendicular
+
+        # Add circular cross-section vertices for the current segment
+        for k in range(circular_resolution):
+            vertex = p1 + circular_vertices[k][0] * perp1 + circular_vertices[k][1] * perp2
+            vertices.append(vertex)
+
+        # Create faces between the current and next segments
+        if i < num_points - 2:  # Avoid going out of bounds
+            for k in range(circular_resolution):
+                a = i * circular_resolution + k
+                b = a + circular_resolution
+                c = (a + 1) % circular_resolution + (i * circular_resolution)
+                d = (b + 1) % circular_resolution + ((i + 1) * circular_resolution)
+
+                faces.append([a, b, c])
+                faces.append([c, b, d])
+
+    # Convert to numpy arrays for vertices and faces
+    vertices = np.array(vertices)
+    faces = np.array(faces)
+
+    # Initialize the mesh and set up the vectors for each face
+    curved_extrusion = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
+    for i, f in enumerate(faces):
+        for j in range(3):
+            curved_extrusion.vectors[i][j] = vertices[f[j]]
+    
+    return curved_extrusion
 
 
 shapes = []
 
 shapes.append(create_cube(np.array([0, 0, -UNIT_THICKNESS]), np.array([UNIT_WIDTH, UNIT_HEIGHT, 0])))
-shapes.append(create_hemisphere(np.array([2, 2]), DOT_DIAMETER, DOT_HEIGHT))
+shapes.append(create_hemisphere(np.array([2, 2, 0]), DOT_DIAMETER, DOT_HEIGHT))
+# shapes.append(create_half_cylinder(np.array([UNIT_WIDTH, 0, 0]), np.array([0, UNIT_HEIGHT, 0]), THICK_LINE_WIDTH))
+shapes.append(create_half_cylinder_path(np.array([
+    [UNIT_WIDTH, 0, 0],
+    [0, UNIT_HEIGHT, 0],
+    [UNIT_WIDTH, UNIT_HEIGHT*2, 0]]), THICK_LINE_WIDTH, THICK_LINE_HEIGHT))
 
 
 combined = mesh.Mesh(np.concatenate([shape.data for shape in shapes]))
