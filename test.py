@@ -1,6 +1,7 @@
 import numpy as np
 from stl import mesh
 from geometry_utils import *
+from method_utils import *
 
 
 UNIT_THICKNESS = 5 # mm
@@ -21,13 +22,9 @@ shapes = []
 shapes.append(create_cube(np.array([0, 0, -UNIT_THICKNESS]), np.array([UNIT_WIDTH, UNIT_HEIGHT, 0])))
 shapes.append(create_hemisphere(np.array([8, 2, 0]), DOT_DIAMETER, DOT_HEIGHT))
 
-path = np.array([
-    [UNIT_WIDTH, UNIT_HEIGHT, 0],
-    [0, 0, 0],
-    [0, UNIT_HEIGHT, 0],
-    [UNIT_WIDTH, UNIT_HEIGHT*2, 0],
-    [UNIT_WIDTH, UNIT_HEIGHT*3, 0]
-])
+method = get_method_from_id("16694")
+path = path_from_method(method, "2", UNIT_WIDTH, UNIT_HEIGHT)
+
 smoothed_path = fillet_path(path, 10, radius=THICK_LINE_WIDTH/2)
 # plot_3d_path(path)
 # plot_3d_path(smoothed_path)

@@ -231,23 +231,28 @@ def create_half_cylinder_path(points: np.ndarray, thickness: float, height: floa
                 axis_vector = points[1] - points[0]
             else:
                 axis_vector = points[-1] - points[-2]
-            length = np.linalg.norm(axis_vector)
-            axis_direction = axis_vector / length
+
+            axis_direction = normalize(axis_vector)
             
             # Calculate perpendicular vectors for the circular cross-section orientation
             perp_vector2 = np.cross(axis_direction, perp_vector1)
         
         else:
             in_vector = points[i] - points[i-1]
-            in_vector = in_vector / np.linalg.norm(in_vector)
+            in_vector = normalize(in_vector)
             out_vector = points[i+1] - points[i]
-            out_vector = out_vector / np.linalg.norm(out_vector)
+            out_vector = normalize(out_vector)
 
-            perp_vector2 = out_vector - in_vector
-            perp_vector2 = perp_vector2 / np.linalg.norm(perp_vector2)
-
-            if np.allclose(normalize(np.cross(in_vector, out_vector)), [0, 0, 1]):
-                perp_vector2 *= -1
+            if np.allclose(in_vector, out_vector):
+                perp_vector2 = np.cross(out_vector, perp_vector1)
+                
+            else:
+                perp_vector2 = out_vector - in_vector
+                perp_vector2 = normalize(perp_vector2)
+                
+                # If it's a left-hand turn, the normal vector needs to be flipped to stop the line from turning inside out
+                if np.allclose(normalize(np.cross(in_vector, out_vector)), [0, 0, 1]):
+                    perp_vector2 *= -1
 
 
         for k in range(resolution + 1):
@@ -333,42 +338,47 @@ def fillet_path(
         # Angle between vectors
         angle = np.arccos(np.clip(np.dot(v1, v2), -1.0, 1.0))
         
-        # Calculate tangent points
-        tan_dist = radius / np.tan(angle / 2)
-        t1 = corner + v1 * tan_dist
-        t2 = corner + v2 * tan_dist
+        # If "corner" is actually the centre of a straight line, then don't need to add a fillet
+        if np.allclose(angle, np.pi):
+            return np.array([corner])
         
-        # Calculate center of fillet circle
-        bisector = normalize(v1 + v2)
-        center = corner + bisector * (radius / np.sin(angle / 2))
-        
-        # Create rotation matrix around the axis perpendicular to the plane
-        axis = -np.cross(v1, v2)
-        axis = normalize(axis)
-        
-        # Generate points along the fillet
-        fillet_points = []
-        for i in range(fillet_resolution):
-            t = i / (fillet_resolution - 1)
-            # Angle for this point
-            current_angle = t * (np.pi - angle)
+        else:
+            # Calculate tangent points
+            tan_dist = radius / np.tan(angle / 2)
+            t1 = corner + v1 * tan_dist
+            t2 = corner + v2 * tan_dist
             
-            # Create rotation matrix using Rodrigues' rotation formula
-            K = np.array([
-                [0, -axis[2], axis[1]],
-                [axis[2], 0, -axis[0]],
-                [-axis[1], axis[0], 0]
-            ])
-            R = (np.eye(3) + np.sin(current_angle) * K + 
-                 (1 - np.cos(current_angle)) * np.matmul(K, K))
+            # Calculate center of fillet circle
+            bisector = normalize(v1 + v2)
+            center = corner + bisector * (radius / np.sin(angle / 2))
             
-            # Rotate initial vector to create fillet point
-            initial_vec = normalize(t1 - center)
-            rotated = np.dot(R, initial_vec)
-            point = center + rotated * radius
-            fillet_points.append(point)
+            # Create rotation matrix around the axis perpendicular to the plane
+            axis = -np.cross(v1, v2)
+            axis = normalize(axis)
             
-        return np.array(fillet_points)
+            # Generate points along the fillet
+            fillet_points = []
+            for i in range(fillet_resolution):
+                t = i / (fillet_resolution - 1)
+                # Angle for this point
+                current_angle = t * (np.pi - angle)
+                
+                # Create rotation matrix using Rodrigues' rotation formula
+                K = np.array([
+                    [0, -axis[2], axis[1]],
+                    [axis[2], 0, -axis[0]],
+                    [-axis[1], axis[0], 0]
+                ])
+                R = (np.eye(3) + np.sin(current_angle) * K + 
+                    (1 - np.cos(current_angle)) * np.matmul(K, K))
+                
+                # Rotate initial vector to create fillet point
+                initial_vec = normalize(t1 - center)
+                rotated = np.dot(R, initial_vec)
+                point = center + rotated * radius
+                fillet_points.append(point)
+                
+            return np.array(fillet_points)
     
     # Generate smoothed path
     smoothed_points = []
@@ -386,6 +396,7 @@ def fillet_path(
     smoothed_points.append(path[-1])  # Add last point
     
     return np.array(smoothed_points)
+
 
 def plot_3d_path(
     path: npt.NDArray[np.float64],
@@ -439,4 +450,3 @@ def plot_3d_path(
     ax.set_zlim(mid_z - max_range, mid_z + max_range)
     
     plt.show()
-
