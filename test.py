@@ -1,6 +1,6 @@
 import numpy as np
 from stl import mesh
-from utils import *
+from geometry_utils import *
 
 
 UNIT_THICKNESS = 5 # mm
