@@ -307,7 +307,7 @@ def create_half_cylinder_path(points: np.ndarray, thickness: float, height: floa
 
 def fillet_path(
     path: npt.NDArray[np.float64],
-    fillet_resolution: int,
+    resolution: int,
     radius: float = 1.0
 ) -> npt.NDArray[np.float64]:
     """
@@ -358,8 +358,8 @@ def fillet_path(
             
             # Generate points along the fillet
             fillet_points = []
-            for i in range(fillet_resolution):
-                t = i / (fillet_resolution - 1)
+            for i in range(resolution):
+                t = i / (resolution - 1)
                 # Angle for this point
                 current_angle = t * (np.pi - angle)
                 
