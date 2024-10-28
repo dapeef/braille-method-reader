@@ -6,16 +6,16 @@ numbers = "0123456789"
 
 
 class BrailleConfig:
-    DOT_DIAMETER = 1.5 # mm
-    DOT_HEIGHT = 0.6 # mm
-    DOT_SPACING = 2.3 # mm
-    CELL_SPACING_X = 6.1 # mm
-    CELL_SPACING_Y = 10 # mm
+    dot_diameter = 1.5 # mm
+    dot_height = 0.6 # mm
+    dot_spacing = 2.3 # mm
+    cell_spacing_x = 6.1 # mm
+    cell_spacing_y = 10 # mm
 
-    CELL_GAP_X = CELL_SPACING_X - DOT_SPACING
-    CELL_GAP_Y = CELL_SPACING_Y - DOT_SPACING * 2
+    cell_gap_x = cell_spacing_x - dot_spacing
+    cell_gap_y = cell_spacing_y - dot_spacing * 2
 
-    INCLUDE_CAPS = True # Should the braille display capital letters, or should they all be lower
+    include_caps = True # Should the braille display capital letters, or should they all be lower
 
 
 def str_to_braille(string:str, legible:bool=False) -> str:
@@ -62,7 +62,7 @@ def char_to_dots(braille_char:str, position:np.ndarray, config:BrailleConfig) ->
             points.append(np.array([
                 np.floor_divide(i, 3),
                 -(i % 3),
-                0]) * config.DOT_SPACING + position)
+                0]) * config.dot_spacing + position)
 
     return points
 
@@ -71,18 +71,21 @@ def str_to_dots(string:str,
     points = []
     position = np.array([0, 0, 0])
 
+    if not config.include_caps:
+        string = string.lower()
+
     braille_string = str_to_braille(string)
 
 
     for char in braille_string:
         if char == "\n":
             position[0] = 0
-            position[1] += config.CELL_SPACING_Y
+            position[1] += config.cell_spacing_y
 
         else:
             # Add letter
             points += char_to_dots(char, position, config)
-            position[0] += config.CELL_SPACING_X
+            position[0] += config.cell_spacing_x
     
     return np.array(points)
 

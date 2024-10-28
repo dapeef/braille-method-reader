@@ -530,25 +530,25 @@ class TitleText(Enum):
 
 
 class PlateConfig:
-    UNIT_THICKNESS = .4 # mm
-    UNIT_WIDTH = 10 # mm
-    UNIT_HEIGHT = 5 # mm
+    unit_thickness = .4 # mm
+    unit_width = 10 # mm
+    unit_height = 5 # mm
 
-    THICK_LINE_WIDTH = 2 # mm
-    THICK_LINE_HEIGHT = 1 # mm
-    THIN_LINE_WIDTH = 1 # mm
-    THIN_LINE_HEIGHT = .5 # mm
-    DOT_DIAMETER = 1.5 # mm
-    DOT_HEIGHT = 0.6 # mm
-    DOT_SEPARATION = 2.3 # mm
+    thick_line_width = 2 # mm
+    thick_line_height = 1 # mm
+    thin_line_width = 1 # mm
+    thin_line_height = .5 # mm
+    dot_diameter = 1.5 # mm
+    dot_height = 0.6 # mm
+    dot_separation = 2.3 # mm
 
-    TITLE_POSITION = TitlePos.LEFT 
-    TITLE_LANGUAGE = TitleLanguage.BOTH
-    TITLE_TEXT = TitleText.SHORT
+    title_position = TitlePos.LEFT 
+    title_language = TitleLanguage.BOTH
+    title_text = TitleText.SHORT
 
-    MARGIN = 5 # mm - Border around the edges
+    margin = 5 # mm - Border around the edges
 
-    BRAILLE_CONFIG = BrailleConfig()
+    braille_config = BrailleConfig()
 
 class Plate:
     def __init__(self, method:Method, config:PlateConfig) -> None:
@@ -560,34 +560,34 @@ class Plate:
     def create_base(self):
         # Base plate
         bottom_left = np.array([
-            -self.config.MARGIN,
-            -self.config.UNIT_HEIGHT * self.method.lead_length - self.config.MARGIN,
-            -self.config.UNIT_THICKNESS])
+            -self.config.margin,
+            -self.config.unit_height * self.method.lead_length - self.config.margin,
+            -self.config.unit_thickness])
         top_right = np.array([
-            self.config.UNIT_WIDTH * (self.method.stage-1) + self.config.MARGIN,
-            self.config.MARGIN,
+            self.config.unit_width * (self.method.stage-1) + self.config.margin,
+            self.config.margin,
             0])
         
-        match self.config.TITLE_POSITION:
+        match self.config.title_position:
             case TitlePos.TOP:
-                top_right[1] += self.config.BRAILLE_CONFIG.CELL_SPACING_Y
+                top_right[1] += self.config.braille_config.cell_spacing_y
             case TitlePos.BOTTOM:
-                bottom_left[1] -= self.config.BRAILLE_CONFIG.CELL_SPACING_Y
+                bottom_left[1] -= self.config.braille_config.cell_spacing_y
             case TitlePos.LEFT:
-                bottom_left[0] -= self.config.BRAILLE_CONFIG.CELL_SPACING_Y
+                bottom_left[0] -= self.config.braille_config.cell_spacing_y
             case TitlePos.RIGHT:
-                top_right[0] += self.config.BRAILLE_CONFIG.CELL_SPACING_Y
+                top_right[0] += self.config.braille_config.cell_spacing_y
 
         self.shapes.append(create_cuboid(
             bottom_left,
             top_right))
 
     def create_title(self):
-        if self.config.TITLE_POSITION == TitlePos.NONE:
+        if self.config.title_position == TitlePos.NONE:
             print("Warning: Title creation called, but TITLE_POSITION is NONE")
         
         else:
-            match self.config.TITLE_TEXT:
+            match self.config.title_text:
                 case TitleText.FULL:
                     title_text = self.method.title
                 case TitleText.FULL_LOWER:
@@ -597,92 +597,92 @@ class Plate:
                 case TitleText.SHORT_LOWER:
                     title_text = f"{self.method.name} {self.method.stage}".lower()
 
-            match self.config.TITLE_POSITION:
+            match self.config.title_position:
                 case TitlePos.TOP:
-                    start_position = np.array([0, self.config.BRAILLE_CONFIG.CELL_SPACING_Y, 0])
+                    start_position = np.array([0, self.config.braille_config.cell_spacing_y, 0])
                     angle = 0
                 case TitlePos.BOTTOM:
-                    start_position = np.array([0, -self.config.UNIT_HEIGHT * self.method.lead_length - self.config.BRAILLE_CONFIG.CELL_GAP_Y, 0])
+                    start_position = np.array([0, -self.config.UNIT_HEIGHT * self.method.lead_length - self.config.braille_config.cell_gap_y, 0])
                     angle = 0
                 case TitlePos.LEFT:
-                    start_position = np.array([-self.config.BRAILLE_CONFIG.CELL_GAP_Y, 0, 0])
+                    start_position = np.array([-self.config.braille_config.cell_gap_y, 0, 0])
                     angle = -np.pi/2
                 case TitlePos.RIGHT:
-                    start_position = np.array([self.config.UNIT_WIDTH * (self.method.stage - 1) +  self.config.BRAILLE_CONFIG.CELL_SPACING_Y, 0, 0])
+                    start_position = np.array([self.config.UNIT_WIDTH * (self.method.stage - 1) +  self.config.braille_config.cell_spacing_y, 0, 0])
                     angle = -np.pi/2
 
-            points = str_to_dots(title_text, self.config.BRAILLE_CONFIG)
+            points = str_to_dots(title_text, self.config.braille_config)
             points = rotate_points(points, angle)
             points += start_position
 
             for point in points:
                 self.shapes.append(create_hemisphere(point,
-                                                     self.config.BRAILLE_CONFIG.DOT_DIAMETER,
-                                                     self.config.BRAILLE_CONFIG.DOT_HEIGHT))
+                                                     self.config.braille_config.dot_diameter,
+                                                     self.config.braille_config.dot_height))
     
     def create_place_bell_label(self, bell:int|str):
-        if self.config.TITLE_POSITION == TitlePos.NONE:
+        if self.config.title_position == TitlePos.NONE:
             print("Warning: Place bell label creation called, but TITLE_POSITION is NONE")
         
         else:
             text = str(bell)
 
-            match self.config.TITLE_POSITION:
+            match self.config.title_position:
                 case TitlePos.TOP:
                     start_position = np.array([self.config.UNIT_WIDTH * (self.method.stage - 1),
-                                               self.config.BRAILLE_CONFIG.CELL_SPACING_Y,
+                                               self.config.braille_config.cell_spacing_y,
                                                0])
                     angle = 0
                 case TitlePos.BOTTOM:
                     start_position = np.array([self.config.UNIT_WIDTH * (self.method.stage - 1),
-                                               -self.config.UNIT_HEIGHT * self.method.lead_length - self.config.BRAILLE_CONFIG.CELL_GAP_Y,
+                                               -self.config.UNIT_HEIGHT * self.method.lead_length - self.config.braille_config.cell_gap_y,
                                                0])
                     angle = 0
                 case TitlePos.LEFT:
-                    start_position = np.array([-self.config.BRAILLE_CONFIG.CELL_GAP_Y,
-                                               -self.config.UNIT_HEIGHT * self.method.lead_length,
+                    start_position = np.array([-self.config.braille_config.cell_gap_y,
+                                               -self.config.unit_height * self.method.lead_length,
                                                0])
                     angle = -np.pi/2
                 case TitlePos.RIGHT:
-                    start_position = np.array([self.config.UNIT_WIDTH * (self.method.stage - 1) + self.config.BRAILLE_CONFIG.CELL_SPACING_Y,
+                    start_position = np.array([self.config.UNIT_WIDTH * (self.method.stage - 1) + self.config.braille_config.cell_spacing_y,
                                                -self.config.UNIT_HEIGHT * self.method.lead_length,
                                                0])
                     angle = -np.pi/2
 
-            points = str_to_dots(text, self.config.BRAILLE_CONFIG)
+            points = str_to_dots(text, self.config.braille_config)
             points = align_points_right(points)
             points = rotate_points(points, angle)
             points += start_position
 
             for point in points:
                 self.shapes.append(create_hemisphere(point,
-                                                     self.config.BRAILLE_CONFIG.DOT_DIAMETER,
-                                                     self.config.BRAILLE_CONFIG.DOT_HEIGHT))
+                                                     self.config.braille_config.dot_diameter,
+                                                     self.config.braille_config.dot_height))
 
     def create_vertical_lines(self):
         # Vertical lines
         for i in range(self.method.stage):
             self.shapes.append(create_half_cylinder_path(
-                np.array([[i * self.config.UNIT_WIDTH, 0, 0],
-                          [i * self.config.UNIT_WIDTH, -self.method.lead_length * self.config.UNIT_HEIGHT, 0]]),
-                thickness=self.config.THIN_LINE_WIDTH,
-                height=self.config.THIN_LINE_HEIGHT))
+                np.array([[i * self.config.unit_width, 0, 0],
+                          [i * self.config.unit_width, -self.method.lead_length * self.config.unit_height, 0]]),
+                thickness=self.config.thin_line_width,
+                height=self.config.thin_line_height))
 
     def create_thick_line(self, bell:int):
         rows = self.method.get_first_lead()
-        path = Method.path_from_method(rows, bell, self.config.UNIT_WIDTH, self.config.UNIT_HEIGHT)
-        smoothed_path = fillet_path(path, resolution=10, radius=self.config.THICK_LINE_WIDTH/4)
-        self.shapes.append(create_half_cylinder_path(smoothed_path, self.config.THICK_LINE_WIDTH, self.config.THICK_LINE_HEIGHT))
+        path = Method.path_from_method(rows, bell, self.config.unit_width, self.config.unit_height)
+        smoothed_path = fillet_path(path, resolution=10, radius=self.config.thick_line_width/4)
+        self.shapes.append(create_half_cylinder_path(smoothed_path, self.config.thick_line_width, self.config.thick_line_height))
         # plot_3d_path(path)
         # plot_3d_path(smoothed_path)
         # plot_3d_path(resampled_path)
 
     def create_dotted_line(self, bell:int=1):
         rows = self.method.get_first_lead()
-        path = Method.path_from_method(rows, bell, self.config.UNIT_WIDTH, self.config.UNIT_HEIGHT)
-        resampled_path = resample_path(path, self.config.DOT_SEPARATION)
+        path = Method.path_from_method(rows, bell, self.config.unit_width, self.config.unit_height)
+        resampled_path = resample_path(path, self.config.dot_separation)
         for point in resampled_path:
-            self.shapes.append(create_hemisphere(point, self.config.DOT_DIAMETER, self.config.DOT_HEIGHT))
+            self.shapes.append(create_hemisphere(point, self.config.dot_diameter, self.config.dot_height))
 
     def save_to_stl(self, file_name="output.stl"):
         # Write the mesh to file

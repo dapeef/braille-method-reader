@@ -1,26 +1,22 @@
-from geometry_utils import Plate, PlateConfig
+from geometry_utils import Plate, PlateConfig, TitlePos, TitleLanguage, TitleText
 from method_utils import Method
 
 
 config = PlateConfig()
-config.UNIT_THICKNESS = .4 # mm
-config.UNIT_WIDTH = 10 # mm
-config.UNIT_HEIGHT = 5 # mm
+config.unit_thickness = .4 # mm
+config.unit_width = 10 # mm
+config.unit_height = 5 # mm
 
-config.THICK_LINE_WIDTH = 2 # mm
-config.THICK_LINE_HEIGHT = 1 # mm
-config.THIN_LINE_WIDTH = 1 # mm
-config.THIN_LINE_HEIGHT = .5 # mm
-config.DOT_DIAMETER = 1.5 # mm
-config.DOT_HEIGHT = config.DOT_DIAMETER / 2 # mm
-config.DOT_SEPARATION = 2.3 # mm
+config.title_position = TitlePos.LEFT 
+config.title_language = TitleLanguage.BOTH
+config.title_text = TitleText.SHORT
 
 # Norwich 6 = 14317
 # Cambridge 8 = 16694
 # Cambridge 10 = 21250
 # Double Norwich 8 = 12470
-method = Method.create_from_complib_id("12470")
-method.name = "D. Norwich"
+method = Method.create_from_complib_id("16694")
+# method.name = "D N'ich"
 
 plate = Plate(method, config)
 
