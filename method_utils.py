@@ -11,6 +11,11 @@ class Method:
         self.rows = [row[0] for row in complib_data["rows"][1:]]
 
     @staticmethod
+    def create_from_complib_id(id:str):
+        data = get_method_from_id(id)
+        return Method(data)
+
+    @staticmethod
     def parse_place_notation(raw_place_notation: str) -> list[str]:
         def is_num(token):
             return token in "0123456789"

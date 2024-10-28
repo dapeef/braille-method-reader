@@ -1,7 +1,5 @@
-import numpy as np
-from stl import mesh
 from geometry_utils import Plate, PlateConfig
-from method_utils import *
+from method_utils import Method
 
 
 config = PlateConfig()
@@ -17,15 +15,15 @@ config.DOT_DIAMETER = 1.5 # mm
 config.DOT_HEIGHT = config.DOT_DIAMETER / 2 # mm
 config.DOT_SEPARATION = 2.3 # mm
 
-
-data = get_method_from_id("16694")
-method = Method(data)
+# Norwich 6 = 14317
+# Cambridge 8 = 16694
+method = Method.create_from_complib_id("16694")
 
 plate = Plate(method, config)
 
 plate.create_base()
 plate.create_vertical_lines()
-plate.create_thick_line(3)
+plate.create_thick_line(4)
 plate.create_dotted_line()
 
 plate.save_to_stl()
