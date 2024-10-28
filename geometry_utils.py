@@ -204,7 +204,8 @@ def create_half_cylinder(start: np.ndarray, end: np.ndarray, diameter: float,
     return half_cylinder
 
 def create_half_cylinder_path(points: np.ndarray, thickness: float, height: float,
-                              resolution: int = 10, cap_style: str = "dome") -> mesh.Mesh:
+                              resolution: int = 10, cap_style: str = "dome",
+                              cap_diameter:float|None = None, cap_height:float|None = None) -> mesh.Mesh:
     """
     Creates a half-cylinder STL mesh oriented with its axis horizontally and its flat face on z=0.
     
@@ -302,8 +303,12 @@ def create_half_cylinder_path(points: np.ndarray, thickness: float, height: floa
     
     # Add caps
     if cap_style == "dome":
-        start_cap = create_hemisphere(points[ 0], thickness, height, theta_resolution=2*resolution, phi_resolution=int(resolution/2))
-        end_cap =   create_hemisphere(points[-1], thickness, height, theta_resolution=2*resolution, phi_resolution=int(resolution/2))
+        if cap_diameter is None:
+            cap_diameter = thickness
+        if cap_height is None:
+            cap_height = height
+        start_cap = create_hemisphere(points[ 0], cap_diameter, cap_height, theta_resolution=2*resolution, phi_resolution=int(resolution/2))
+        end_cap =   create_hemisphere(points[-1], cap_diameter, cap_height, theta_resolution=2*resolution, phi_resolution=int(resolution/2))
 
         half_cylinder = mesh.Mesh(np.concatenate([half_cylinder.data, start_cap.data, end_cap.data]))
 
@@ -528,6 +533,10 @@ class TitleText(Enum):
     SHORT = auto() # eg "Cambridge 8"
     SHORT_LOWER = auto() # eg "cambridge 8"
 
+class LengthTypes(Enum):
+    PLAIN_COURSE = auto()
+    SINGLE_LEAD = auto()
+
 
 class PlateConfig:
     unit_thickness = .4 # mm
@@ -541,6 +550,10 @@ class PlateConfig:
     dot_diameter = 1.5 # mm
     dot_height = 0.6 # mm
     dot_separation = 2.3 # mm
+    lead_end_dot_diameter = 2 * thick_line_width # mm
+    lead_end_dot_height = 2 * thick_line_height # mm
+
+    length_type = LengthTypes.SINGLE_LEAD
 
     title_position = TitlePos.LEFT 
     title_language = TitleLanguage.BOTH
@@ -555,16 +568,25 @@ class Plate:
         self.method = method
         self.config = config
 
+        self.base_width = self.config.unit_width * (self.method.stage-1)
+        match self.config.length_type:
+            case LengthTypes.PLAIN_COURSE:
+                self.drawable_rows = self.method.rows
+                self.base_height = self.config.unit_height * (len(self.method.rows) - 1)
+            case LengthTypes.SINGLE_LEAD:
+                self.drawable_rows = self.method.get_first_lead()
+                self.base_height = self.config.unit_height * self.method.lead_length
+
         self.shapes = []
 
     def create_base(self):
         # Base plate
         bottom_left = np.array([
             -self.config.margin,
-            -self.config.unit_height * self.method.lead_length - self.config.margin,
+            -self.base_height - self.config.margin,
             -self.config.unit_thickness])
         top_right = np.array([
-            self.config.unit_width * (self.method.stage-1) + self.config.margin,
+            self.base_width + self.config.margin,
             self.config.margin,
             0])
         
@@ -602,13 +624,13 @@ class Plate:
                     start_position = np.array([0, self.config.braille_config.cell_spacing_y, 0])
                     angle = 0
                 case TitlePos.BOTTOM:
-                    start_position = np.array([0, -self.config.UNIT_HEIGHT * self.method.lead_length - self.config.braille_config.cell_gap_y, 0])
+                    start_position = np.array([0, -self.base_height - self.config.braille_config.cell_gap_y, 0])
                     angle = 0
                 case TitlePos.LEFT:
                     start_position = np.array([-self.config.braille_config.cell_gap_y, 0, 0])
                     angle = -np.pi/2
                 case TitlePos.RIGHT:
-                    start_position = np.array([self.config.UNIT_WIDTH * (self.method.stage - 1) +  self.config.braille_config.cell_spacing_y, 0, 0])
+                    start_position = np.array([self.base_width +  self.config.braille_config.cell_spacing_y, 0, 0])
                     angle = -np.pi/2
 
             points = str_to_dots(title_text, self.config.braille_config)
@@ -629,23 +651,23 @@ class Plate:
 
             match self.config.title_position:
                 case TitlePos.TOP:
-                    start_position = np.array([self.config.UNIT_WIDTH * (self.method.stage - 1),
+                    start_position = np.array([self.base_width,
                                                self.config.braille_config.cell_spacing_y,
                                                0])
                     angle = 0
                 case TitlePos.BOTTOM:
-                    start_position = np.array([self.config.UNIT_WIDTH * (self.method.stage - 1),
-                                               -self.config.UNIT_HEIGHT * self.method.lead_length - self.config.braille_config.cell_gap_y,
+                    start_position = np.array([self.base_width,
+                                               -self.base_height - self.config.braille_config.cell_gap_y,
                                                0])
                     angle = 0
                 case TitlePos.LEFT:
                     start_position = np.array([-self.config.braille_config.cell_gap_y,
-                                               -self.config.unit_height * self.method.lead_length,
+                                               -self.base_height,
                                                0])
                     angle = -np.pi/2
                 case TitlePos.RIGHT:
-                    start_position = np.array([self.config.UNIT_WIDTH * (self.method.stage - 1) + self.config.braille_config.cell_spacing_y,
-                                               -self.config.UNIT_HEIGHT * self.method.lead_length,
+                    start_position = np.array([self.base_width + self.config.braille_config.cell_spacing_y,
+                                               -self.base_height,
                                                0])
                     angle = -np.pi/2
 
@@ -664,22 +686,33 @@ class Plate:
         for i in range(self.method.stage):
             self.shapes.append(create_half_cylinder_path(
                 np.array([[i * self.config.unit_width, 0, 0],
-                          [i * self.config.unit_width, -self.method.lead_length * self.config.unit_height, 0]]),
+                          [i * self.config.unit_width, -self.base_height, 0]]),
                 thickness=self.config.thin_line_width,
                 height=self.config.thin_line_height))
 
     def create_thick_line(self, bell:int):
-        rows = self.method.get_first_lead()
-        path = Method.path_from_method(rows, bell, self.config.unit_width, self.config.unit_height)
+        path = Method.path_from_method(self.drawable_rows, bell, self.config.unit_width, self.config.unit_height)
         smoothed_path = fillet_path(path, resolution=10, radius=self.config.thick_line_width/4)
-        self.shapes.append(create_half_cylinder_path(smoothed_path, self.config.thick_line_width, self.config.thick_line_height))
+        self.shapes.append(create_half_cylinder_path(smoothed_path,
+                                                     self.config.thick_line_width,
+                                                     self.config.thick_line_height))
         # plot_3d_path(path)
         # plot_3d_path(smoothed_path)
         # plot_3d_path(resampled_path)
+    
+    def create_lead_end_dots(self, bell:int):
+        i = 0
+
+        while i < len(self.drawable_rows):
+            self.shapes.append(create_hemisphere(np.array([
+                self.drawable_rows[i].index(str(bell)) * self.config.unit_width,
+                -i * self.config.unit_height,
+                0]), self.config.lead_end_dot_diameter, self.config.lead_end_dot_height))
+
+            i += self.method.lead_length
 
     def create_dotted_line(self, bell:int=1):
-        rows = self.method.get_first_lead()
-        path = Method.path_from_method(rows, bell, self.config.unit_width, self.config.unit_height)
+        path = Method.path_from_method(self.drawable_rows, bell, self.config.unit_width, self.config.unit_height)
         resampled_path = resample_path(path, self.config.dot_separation)
         for point in resampled_path:
             self.shapes.append(create_hemisphere(point, self.config.dot_diameter, self.config.dot_height))
