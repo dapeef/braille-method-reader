@@ -1,8 +1,9 @@
 import numpy as np
-from scipy.interpolate import interp1d
 from stl import mesh
 import numpy.typing as npt
 import matplotlib.pyplot as plt
+from method_utils import Method
+from enum import Enum, auto
 
 
 def normalize(v: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
@@ -11,7 +12,7 @@ def normalize(v: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     return v if norm == 0 else v / norm
 
 
-def create_cube(corner1:np.ndarray, corner2:np.ndarray) ->mesh.Mesh:
+def create_cuboid(corner1:np.ndarray, corner2:np.ndarray) -> mesh.Mesh:
     # Define the 8 vertices of the cube
     vertices = np.array([
         [corner1[0], corner1[1], corner1[2]],
@@ -48,7 +49,8 @@ def create_cube(corner1:np.ndarray, corner2:np.ndarray) ->mesh.Mesh:
 
     return cube
 
-def create_hemisphere(position: np.ndarray, diameter: float, height: float, theta_resolution: int = 40, phi_resolution: int = 10) -> mesh.Mesh:
+def create_hemisphere(position: np.ndarray, diameter: float, height: float,
+                      theta_resolution: int = 40, phi_resolution: int = 10) -> mesh.Mesh:
     """
     Creates a hemisphere STL mesh.
     
@@ -201,7 +203,7 @@ def create_half_cylinder(start: np.ndarray, end: np.ndarray, diameter: float,
     return half_cylinder
 
 def create_half_cylinder_path(points: np.ndarray, thickness: float, height: float,
-                              resolution: int = 20, cap_style: str = "dome") -> mesh.Mesh:
+                              resolution: int = 10, cap_style: str = "dome") -> mesh.Mesh:
     """
     Creates a half-cylinder STL mesh oriented with its axis horizontally and its flat face on z=0.
     
@@ -306,11 +308,7 @@ def create_half_cylinder_path(points: np.ndarray, thickness: float, height: floa
 
     return half_cylinder
 
-def fillet_path(
-    path: npt.NDArray[np.float64],
-    resolution: int,
-    radius: float = 1.0
-) -> npt.NDArray[np.float64]:
+def fillet_path(path: npt.NDArray[np.float64], resolution: int, radius: float = 1.0) -> npt.NDArray[np.float64]:
     """
     Smooths corners in a 3D path by replacing corner points with circular fillets.
     
@@ -400,32 +398,6 @@ def fillet_path(
 
 def resample_path(path, interval):
     """
-    Resample a 3D path to have points at evenly spaced intervals.
-    
-    Parameters:
-    - path (numpy.ndarray): Original 3D path, shape (N, 3).
-    - interval (float): Desired spacing between points in the new path.
-    
-    Returns:
-    - numpy.ndarray: New path with points at evenly spaced intervals.
-    """
-    # Step 1: Calculate the distances between consecutive points
-    distances = np.sqrt(np.sum(np.diff(path, axis=0)**2, axis=1))
-    cumulative_distances = np.insert(np.cumsum(distances), 0, 0)  # Cumulative distance along the path
-    
-    # Step 2: Determine the new evenly spaced distance values
-    total_distance = cumulative_distances[-1]
-    new_distances = np.arange(0, total_distance, interval)
-    
-    # Step 3: Interpolate to find new points at these distances
-    new_path = np.zeros((len(new_distances), 3))  # Preallocate array for new path points
-    for i in range(3):  # Interpolate each coordinate separately
-        new_path[:, i] = np.interp(new_distances, cumulative_distances, path[:, i])
-    
-    return new_path
-
-def resample_path_with_original_points(path, interval):
-    """
     Interpolate a 3D path, keeping original points intact and adding interpolated points
     along each segment to achieve nearly uniform spacing.
     
@@ -509,3 +481,77 @@ def plot_3d_path(
     ax.set_zlim(mid_z - max_range, mid_z + max_range)
     
     plt.show()
+
+
+class TitlePos(Enum):
+    # Where to put the title
+    TOP = auto()
+    BOTTOM = auto()
+    NONE = auto()
+
+class TitleType(Enum):
+    # Whether to write the title in braille or latin script
+    BRAILLE = auto()
+    LATIN = auto()
+    BOTH = auto()
+    NONE = auto()
+
+
+class PlateConfig:
+    UNIT_THICKNESS = .4 # mm
+    UNIT_WIDTH = 10 # mm
+    UNIT_HEIGHT = 5 # mm
+
+    THICK_LINE_WIDTH = 2 # mm
+    THICK_LINE_HEIGHT = 1 # mm
+    THIN_LINE_WIDTH = 1 # mm
+    THIN_LINE_HEIGHT = .5 # mm
+    DOT_DIAMETER = 1.5 # mm
+    DOT_HEIGHT = DOT_DIAMETER / 2 # mm
+    DOT_SEPARATION = 2.3 # mm
+
+    TITLE_POSITION = TitlePos.TOP 
+    TITLE_TYPE = TitleType.BOTH
+
+class Plate:
+    def __init__(self, method:Method, config:PlateConfig) -> None:
+        self.method = method
+        self.config = config
+
+        self.shapes = []
+
+    def create_base(self):
+        # Base plate
+        self.shapes.append(create_cuboid(
+            np.array([-self.config.UNIT_WIDTH, -self.config.UNIT_HEIGHT * (self.method.lead_length + 1), -self.config.UNIT_THICKNESS]),
+            np.array([self.config.UNIT_WIDTH * self.method.stage, self.config.UNIT_HEIGHT, 0])))
+
+    def create_vertical_lines(self):
+        # Vertical lines
+        for i in range(self.method.stage):
+            self.shapes.append(create_half_cylinder_path(
+                np.array([[i * self.config.UNIT_WIDTH, 0, 0],
+                          [i * self.config.UNIT_WIDTH, -self.method.lead_length * self.config.UNIT_HEIGHT, 0]]),
+                thickness=self.config.THIN_LINE_WIDTH,
+                height=self.config.THIN_LINE_HEIGHT))
+
+    def create_thick_line(self, bell:int):
+        rows = self.method.get_first_lead()
+        path = Method.path_from_method(rows, bell, self.config.UNIT_WIDTH, self.config.UNIT_HEIGHT)
+        smoothed_path = fillet_path(path, resolution=10, radius=self.config.THICK_LINE_WIDTH/2)
+        self.shapes.append(create_half_cylinder_path(smoothed_path, self.config.THICK_LINE_WIDTH, self.config.THICK_LINE_HEIGHT))
+        # plot_3d_path(path)
+        # plot_3d_path(smoothed_path)
+        # plot_3d_path(resampled_path)
+
+    def create_dotted_line(self, bell:int=1):
+        rows = self.method.get_first_lead()
+        path = Method.path_from_method(rows, bell, self.config.UNIT_WIDTH, self.config.UNIT_HEIGHT)
+        resampled_path = resample_path(path, self.config.DOT_SEPARATION)
+        for point in resampled_path:
+            self.shapes.append(create_hemisphere(point, self.config.DOT_DIAMETER, self.config.DOT_HEIGHT))
+
+    def save_to_stl(self, file_name="output.stl"):
+        # Write the mesh to file
+        combined = mesh.Mesh(np.concatenate([shape.data for shape in self.shapes]))
+        combined.save(file_name)
