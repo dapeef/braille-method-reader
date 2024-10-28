@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.interpolate import interp1d
 from stl import mesh
 import numpy.typing as npt
 import matplotlib.pyplot as plt
@@ -396,6 +397,64 @@ def fillet_path(
     smoothed_points.append(path[-1])  # Add last point
     
     return np.array(smoothed_points)
+
+def resample_path(path, interval):
+    """
+    Resample a 3D path to have points at evenly spaced intervals.
+    
+    Parameters:
+    - path (numpy.ndarray): Original 3D path, shape (N, 3).
+    - interval (float): Desired spacing between points in the new path.
+    
+    Returns:
+    - numpy.ndarray: New path with points at evenly spaced intervals.
+    """
+    # Step 1: Calculate the distances between consecutive points
+    distances = np.sqrt(np.sum(np.diff(path, axis=0)**2, axis=1))
+    cumulative_distances = np.insert(np.cumsum(distances), 0, 0)  # Cumulative distance along the path
+    
+    # Step 2: Determine the new evenly spaced distance values
+    total_distance = cumulative_distances[-1]
+    new_distances = np.arange(0, total_distance, interval)
+    
+    # Step 3: Interpolate to find new points at these distances
+    new_path = np.zeros((len(new_distances), 3))  # Preallocate array for new path points
+    for i in range(3):  # Interpolate each coordinate separately
+        new_path[:, i] = np.interp(new_distances, cumulative_distances, path[:, i])
+    
+    return new_path
+
+def resample_path_with_original_points(path, interval):
+    """
+    Interpolate a 3D path, keeping original points intact and adding interpolated points
+    along each segment to achieve nearly uniform spacing.
+    
+    Parameters:
+    - path (numpy.ndarray): Original 3D path, shape (N, 3).
+    - interval (float): Desired approximate spacing between interpolated points.
+    
+    Returns:
+    - numpy.ndarray: New path with original and interpolated points.
+    """
+    new_path = [path[0]]  # Start with the first point in the path
+    
+    for i in range(len(path) - 1):
+        # Get the current and next point
+        p1, p2 = path[i], path[i + 1]
+        
+        # Calculate the distance between p1 and p2
+        segment_distance = np.linalg.norm(p2 - p1)
+        
+        # Determine number of interpolated points for this segment
+        num_points = max(int(np.floor(segment_distance / interval)), 1)
+        
+        # Calculate interpolated points between p1 and p2
+        for j in range(1, num_points + 1):
+            t = j / num_points  # Interpolation parameter
+            interpolated_point = (1 - t) * p1 + t * p2
+            new_path.append(interpolated_point)
+    
+    return np.array(new_path)
 
 
 def plot_3d_path(

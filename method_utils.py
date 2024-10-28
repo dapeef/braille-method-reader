@@ -4,6 +4,7 @@ import numpy as np
 class Method:
     def __init__(self, complib_data) -> None:
         self.title = complib_data["title"]
+        self.stage = complib_data["stage"]
         self.raw_place_notation = complib_data["placeNotation"]
         self.place_notation = Method.parse_place_notation(self.raw_place_notation)
         self.lead_length = len(self.place_notation)
