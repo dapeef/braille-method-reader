@@ -3,12 +3,13 @@ import numpy as np
 
 class Method:
     def __init__(self, complib_data) -> None:
-        self.title = complib_data["title"]
-        self.stage = complib_data["stage"]
-        self.raw_place_notation = complib_data["placeNotation"]
-        self.place_notation = Method.parse_place_notation(self.raw_place_notation)
-        self.lead_length = len(self.place_notation)
-        self.rows = [row[0] for row in complib_data["rows"][1:]]
+        self.title:str = complib_data["title"]
+        self.stage:int = complib_data["stage"]
+        self.name:str = complib_data["name"]
+        self.raw_place_notation:str = complib_data["placeNotation"]
+        self.place_notation:list[str] = Method.parse_place_notation(self.raw_place_notation)
+        self.lead_length:int = len(self.place_notation)
+        self.rows:list[str] = [row[0] for row in complib_data["rows"][1:]]
 
     @staticmethod
     def create_from_complib_id(id:str):

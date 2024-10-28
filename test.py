@@ -17,7 +17,10 @@ config.DOT_SEPARATION = 2.3 # mm
 
 # Norwich 6 = 14317
 # Cambridge 8 = 16694
-method = Method.create_from_complib_id("16694")
+# Cambridge 10 = 21250
+# Double Norwich 8 = 12470
+method = Method.create_from_complib_id("12470")
+method.name = "D. Norwich"
 
 plate = Plate(method, config)
 
@@ -25,6 +28,7 @@ plate.create_base()
 plate.create_title()
 plate.create_vertical_lines()
 plate.create_thick_line(4)
+plate.create_place_bell_label(4)
 plate.create_dotted_line()
 
 plate.save_to_stl()
