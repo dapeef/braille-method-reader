@@ -691,4 +691,4 @@ class Plate:
 
 
 if __name__ == "__main__":
-    import test
+    import main
