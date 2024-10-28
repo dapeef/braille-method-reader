@@ -22,6 +22,7 @@ method = Method.create_from_complib_id("16694")
 plate = Plate(method, config)
 
 plate.create_base()
+plate.create_title()
 plate.create_vertical_lines()
 plate.create_thick_line(4)
 plate.create_dotted_line()

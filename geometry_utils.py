@@ -4,6 +4,7 @@ import numpy.typing as npt
 import matplotlib.pyplot as plt
 from method_utils import Method
 from enum import Enum, auto
+from braille_utils import BrailleConfig, str_to_dots
 
 
 def normalize(v: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
@@ -428,6 +429,25 @@ def resample_path(path, interval):
     
     return np.array(new_path)
 
+def rotate_points(points:np.ndarray, rotation_center:np.ndarray, angle:float) -> np.ndarray:
+    # Step 1: Translate points so that center_point is the origin
+    translated_points = points - rotation_center
+
+    # Step 2: Create the rotation matrix for rotation around the Z-axis
+    rotation_matrix = np.array([
+        [np.cos(angle), -np.sin(angle), 0],
+        [np.sin(angle),  np.cos(angle), 0],
+        [            0,              0, 1]
+    ])
+
+    # Apply the rotation
+    rotated_points = np.dot(translated_points, rotation_matrix.T)
+
+    # Step 3: Translate points back to the original center
+    rotated_points += rotation_center
+
+    return rotated_points
+
 
 def plot_3d_path(
     path: npt.NDArray[np.float64],
@@ -487,6 +507,8 @@ class TitlePos(Enum):
     # Where to put the title
     TOP = auto()
     BOTTOM = auto()
+    LEFT = auto()
+    RIGHT = auto()
     NONE = auto()
 
 class TitleType(Enum):
@@ -494,7 +516,6 @@ class TitleType(Enum):
     BRAILLE = auto()
     LATIN = auto()
     BOTH = auto()
-    NONE = auto()
 
 
 class PlateConfig:
@@ -510,8 +531,12 @@ class PlateConfig:
     DOT_HEIGHT = 0.6 # mm
     DOT_SEPARATION = 2.3 # mm
 
-    TITLE_POSITION = TitlePos.TOP 
+    TITLE_POSITION = TitlePos.LEFT 
     TITLE_TYPE = TitleType.BOTH
+
+    MARGIN = 5 # mm - Border around the edges
+
+    BRAILLE_CONFIG = BrailleConfig()
 
 class Plate:
     def __init__(self, method:Method, config:PlateConfig) -> None:
@@ -522,9 +547,56 @@ class Plate:
 
     def create_base(self):
         # Base plate
+        bottom_left = np.array([
+            -self.config.MARGIN,
+            -self.config.UNIT_HEIGHT * self.method.lead_length - self.config.MARGIN,
+            -self.config.UNIT_THICKNESS])
+        top_right = np.array([
+            self.config.UNIT_WIDTH * (self.method.stage-1) + self.config.MARGIN,
+            self.config.MARGIN,
+            0])
+        
+        match self.config.TITLE_POSITION:
+            case TitlePos.TOP:
+                top_right[1] += self.config.BRAILLE_CONFIG.CELL_SPACING_Y
+            case TitlePos.BOTTOM:
+                bottom_left[1] -= self.config.BRAILLE_CONFIG.CELL_SPACING_Y
+            case TitlePos.LEFT:
+                bottom_left[0] -= self.config.BRAILLE_CONFIG.CELL_SPACING_Y
+            case TitlePos.RIGHT:
+                top_right[0] += self.config.BRAILLE_CONFIG.CELL_SPACING_Y
+
         self.shapes.append(create_cuboid(
-            np.array([-self.config.UNIT_WIDTH, -self.config.UNIT_HEIGHT * (self.method.lead_length + 1), -self.config.UNIT_THICKNESS]),
-            np.array([self.config.UNIT_WIDTH * self.method.stage, self.config.UNIT_HEIGHT, 0])))
+            bottom_left,
+            top_right))
+
+    def create_title(self):
+        if self.config.TITLE_POSITION == TitlePos.NONE:
+            print("Warning: Title creation called, but TITLE_POSITION is NONE")
+        
+        else:
+            match self.config.TITLE_POSITION:
+                case TitlePos.TOP:
+                    start_position = np.array([0, self.config.BRAILLE_CONFIG.CELL_SPACING_Y, 0])
+                    angle = 0
+                case TitlePos.BOTTOM:
+                    start_position = np.array([0, -self.config.UNIT_HEIGHT * self.method.lead_length - self.config.BRAILLE_CONFIG.CELL_GAP_Y, 0])
+                    angle = 0
+                case TitlePos.LEFT:
+                    start_position = np.array([-self.config.BRAILLE_CONFIG.CELL_GAP_Y, 0, 0])
+                    angle = -np.pi/2
+                case TitlePos.RIGHT:
+                    start_position = np.array([self.config.UNIT_WIDTH * (self.method.stage - 1) +  self.config.BRAILLE_CONFIG.CELL_SPACING_Y, 0, 0])
+                    angle = -np.pi/2
+
+            points = str_to_dots(self.method.title, start_position, self.config.BRAILLE_CONFIG)
+
+            points = rotate_points(points, start_position, angle)
+
+            for point in points:
+                self.shapes.append(create_hemisphere(point,
+                                                        self.config.BRAILLE_CONFIG.DOT_DIAMETER,
+                                                        self.config.BRAILLE_CONFIG.DOT_HEIGHT))
 
     def create_vertical_lines(self):
         # Vertical lines
@@ -555,3 +627,7 @@ class Plate:
         # Write the mesh to file
         combined = mesh.Mesh(np.concatenate([shape.data for shape in self.shapes]))
         combined.save(file_name)
+
+
+if __name__ == "__main__":
+    import test
