@@ -4,12 +4,8 @@ from method_utils import Method
 
 config = PlateConfig()
 config.unit_thickness = .4 # mm
-config.unit_width = 10 # mm
-config.unit_height = 5 # mm
-
-config.title_position = TitlePos.LEFT 
-config.title_language = TitleLanguage.BOTH
-config.title_text = TitleText.SHORT
+config.unit_width = 5 # mm
+config.unit_height = 2.5 # mm
 
 config.length_type = LengthTypes.SINGLE_LEAD
 

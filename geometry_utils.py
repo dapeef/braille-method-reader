@@ -348,7 +348,12 @@ def create_half_cylinder(start: np.ndarray, end: np.ndarray, diameter: float,
     
     return half_cylinder
 
-def create_half_cylinder_path(points: np.ndarray, thickness: float, height: float,
+class PathCrossSection(Enum):
+    CYLINDER = auto()
+    RECTANGLE = auto()
+
+def create_path_object(points: np.ndarray, thickness: float, height: float,
+                              cross_section: PathCrossSection = PathCrossSection.CYLINDER,
                               resolution: int = 10, cap_style: str = "dome",
                               cap_diameter:float|None = None, cap_height:float|None = None) -> mesh.Mesh:
     """
@@ -369,6 +374,9 @@ def create_half_cylinder_path(points: np.ndarray, thickness: float, height: floa
     assert cap_style == "dome" or cap_style == "flat", f"Bad cap style: {cap_style}, Choose from \"dome\" or \"none\"."
 
     radius = thickness / 2
+
+    if cross_section == PathCrossSection.RECTANGLE:
+        resolution = 3
 
     # Generate vertices for the half-cylinder along its length
     vertices = []
@@ -405,10 +413,22 @@ def create_half_cylinder_path(points: np.ndarray, thickness: float, height: floa
                     perp_vector2 *= -1
 
 
-        for k in range(resolution + 1):
-            theta = np.pi/2 - np.pi * (k / resolution)  # Half-circle (0 to -pi)
-            x = points[i] + height * np.cos(theta) * perp_vector1 + radius * np.sin(theta) * perp_vector2
-            vertices.append(x)
+        match cross_section:
+            case PathCrossSection.CYLINDER:
+                for k in range(resolution + 1):
+                    theta = np.pi/2 - np.pi * (k / resolution)  # Half-circle (0 to -pi)
+                    x = points[i] + height * np.cos(theta) * perp_vector1 + radius * np.sin(theta) * perp_vector2
+                    vertices.append(x)
+
+            case PathCrossSection.RECTANGLE:
+                point:np.ndarray = points[i] + radius * perp_vector2
+                vertices.append(point.copy())
+                point += height * perp_vector1
+                vertices.append(point.copy())
+                point -= 2 * radius * perp_vector2
+                vertices.append(point.copy())
+                point -= height * perp_vector1
+                vertices.append(point.copy())
     
     # Create faces for curved surface
     faces = []
@@ -685,13 +705,15 @@ class LengthTypes(Enum):
 
 class PlateConfig:
     unit_thickness = .4 # mm
-    unit_width = 10 # mm
-    unit_height = 5 # mm
+    unit_width = 5 # mm
+    unit_height = 2.5 # mm
 
-    thick_line_width = 2 # mm
-    thick_line_height = 1 # mm
+    thick_line_width = 1.5 # mm
+    thick_line_height = 1.5 # mm
+    thick_line_cross_section = PathCrossSection.RECTANGLE
     thin_line_width = 1 # mm
     thin_line_height = .5 # mm
+    thin_line_cross_section = PathCrossSection.CYLINDER
     dot_diameter = 1.5 # mm
     dot_height = 0.6 # mm
     dot_separation = 2.3 # mm
@@ -700,7 +722,7 @@ class PlateConfig:
 
     length_type = LengthTypes.SINGLE_LEAD
 
-    title_position = TitlePos.LEFT 
+    title_position = TitlePos.NONE 
     title_language = TitleLanguage.BOTH
     title_text = TitleText.SHORT
 
@@ -830,18 +852,21 @@ class Plate:
     def create_vertical_lines(self):
         # Vertical lines
         for i in range(self.method.stage):
-            self.shapes.append(create_half_cylinder_path(
+            self.shapes.append(create_path_object(
                 np.array([[i * self.config.unit_width, 0, 0],
                           [i * self.config.unit_width, -self.base_height, 0]]),
                 thickness=self.config.thin_line_width,
-                height=self.config.thin_line_height))
+                height=self.config.thin_line_height,
+                cross_section=self.config.thin_line_cross_section))
 
     def create_thick_line(self, bell:int):
         path = Method.path_from_method(self.drawable_rows, bell, self.config.unit_width, self.config.unit_height)
         smoothed_path = fillet_path(path, resolution=10, radius=self.config.thick_line_width/4)
-        self.shapes.append(create_half_cylinder_path(smoothed_path,
+        self.shapes.append(create_path_object(smoothed_path,
                                                      self.config.thick_line_width,
-                                                     self.config.thick_line_height))
+                                                     self.config.thick_line_height,
+                                                     cross_section=self.config.thick_line_cross_section,
+                                                     resolution=10))
         # plot_3d_path(path)
         # plot_3d_path(smoothed_path)
         # plot_3d_path(resampled_path)
