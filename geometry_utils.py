@@ -836,6 +836,11 @@ class PlateConfig:
     treble_line_cross_section = PathCrossSection.CYLINDER # Only used if treble_type is "cross"
     treble_type = TrebleType.DOTTED
 
+    half_lead_line_width = 1.5 # mm
+    half_lead_line_height = 0.6 # mm
+    half_lead_line_dot_separation = 2.3 # mm
+    half_lead_line_cross_section = PathCrossSection.CYLINDER
+
     lead_end_dot_diameter = 2 * thick_line_width # mm
     lead_end_dot_height = 2 * thick_line_height # mm
 
@@ -1023,6 +1028,19 @@ class Plate:
                 0]), self.config.lead_end_dot_diameter, self.config.lead_end_dot_height))
 
             i += self.method.lead_length
+
+    def create_half_lead_lines(self):
+        i = self.method.lead_length / 2
+
+        while i < len(self.drawable_rows):
+            self.shapes.append(create_path_object(np.array([
+                    np.array([0, -i * self.config.unit_height, 0]),
+                    np.array([self.base_width, -i * self.config.unit_height, 0])]),
+                self.config.half_lead_line_width, self.config.half_lead_line_height,
+                self.config.half_lead_line_cross_section))
+
+            i += self.method.lead_length
+        
 
     def create_treble_line(self, bell:int, treble_bell:int=1):
         match self.config.treble_type:

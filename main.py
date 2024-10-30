@@ -14,7 +14,7 @@ config.treble_type = TrebleType.CROSS
 config.treble_line_height = config.thick_line_height
 config.treble_line_width = config.thick_line_width / 2
 
-config.reverse_method = True
+# config.reverse_method = True
 
 
 # Plain bob 5 = 10550
@@ -33,5 +33,6 @@ bell = 2
 plate.create_thick_line(bell)
 plate.create_lead_end_dots(bell)
 plate.create_treble_line(bell)
+plate.create_half_lead_lines()
 
 plate.save_to_stl()
