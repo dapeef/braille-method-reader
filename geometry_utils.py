@@ -841,6 +841,8 @@ class PlateConfig:
 
     length_type = LengthTypes.SINGLE_LEAD
 
+    reverse_method = False
+
     title_position = TitlePos.NONE 
     title_language = TitleLanguage.BOTH
     title_text = TitleText.SHORT
@@ -863,6 +865,9 @@ class Plate:
             case LengthTypes.SINGLE_LEAD:
                 self.drawable_rows = self.method.get_first_lead()
                 self.base_height = self.config.unit_height * self.method.lead_length
+        
+        if self.config.reverse_method:
+            self.drawable_rows = self.drawable_rows[::-1]
 
         self.shapes = []
 

@@ -14,6 +14,8 @@ config.treble_type = TrebleType.CROSS
 config.treble_line_height = config.thick_line_height
 config.treble_line_width = config.thick_line_width / 2
 
+config.reverse_method = True
+
 
 # Plain bob 5 = 10550
 # Norwich 6 = 14317
