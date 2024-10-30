@@ -11,7 +11,7 @@ config.title_position = TitlePos.LEFT
 config.title_language = TitleLanguage.BOTH
 config.title_text = TitleText.SHORT
 
-config.length_type = LengthTypes.PLAIN_COURSE
+config.length_type = LengthTypes.SINGLE_LEAD
 
 
 # Plain bob 5 = 10550
@@ -19,8 +19,8 @@ config.length_type = LengthTypes.PLAIN_COURSE
 # Cambridge 8 = 16694
 # Cambridge 10 = 21250
 # Double Norwich 8 = 12470
-method = Method.create_from_complib_id("10550")
-# method.name = "D N'ich"
+method = Method.create_from_complib_id("16694")
+# method.name = "C'bridge"
 
 plate = Plate(method, config)
 

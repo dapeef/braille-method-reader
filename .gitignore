@@ -161,4 +161,4 @@ cython_debug/
 
 
 # Output files
-output.stl
+stl-files

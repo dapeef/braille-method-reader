@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Tuple
 from stl import mesh
 import numpy.typing as npt
 import matplotlib.pyplot as plt
@@ -49,6 +50,150 @@ def create_cuboid(corner1:np.ndarray, corner2:np.ndarray) -> mesh.Mesh:
             cube.vectors[i][j] = vertices[face[j],:]
 
     return cube
+
+def create_filleted_cuboid(
+    corner1: Tuple[float, float, float],
+    corner2: Tuple[float, float, float],
+    corner_radius: float,
+    corner_resolution: int = 10
+) -> mesh.Mesh:
+    """
+    Create a cuboid with filleted vertical edges.
+    
+    Args:
+        corner1: Tuple of (x, y, z) representing the corner with minimum coordinates
+        corner2: Tuple of (x, y, z) representing the corner with maximum coordinates
+        corner_radius: Radius of the fillet on the vertical edges
+        corner_resolution: Number of segments to use for each filleted corner (default=10)
+    
+    Returns:
+        mesh.Mesh: STL mesh object representing the filleted cuboid
+    """
+    # Extract coordinates
+    x1, y1, z1 = corner1
+    x2, y2, z2 = corner2
+    
+    # Ensure corner2 has larger coordinates than corner1
+    if any(c2 <= c1 for c1, c2 in zip(corner1, corner2)):
+        raise ValueError("corner2 coordinates must be larger than corner1 coordinates")
+    
+    # Ensure corner radius isn't too large
+    max_radius = min(x2 - x1, y2 - y1) / 2
+    if corner_radius > max_radius:
+        raise ValueError(f"corner_radius must be less than {max_radius}")
+    
+    # Generate points for one fillet
+    theta = np.linspace(0, np.pi/2, corner_resolution)
+    fillet_x = corner_radius * np.cos(theta)
+    fillet_y = corner_radius * np.sin(theta)
+    
+    # Initialize vertices and faces lists
+    vertices: list[npt.NDArray] = []
+    faces: list[npt.NDArray] = []
+    
+    # Create the eight corners' fillet points
+    corners = [
+        (x1 + corner_radius, y1 + corner_radius),  # Bottom left
+        (x2 - corner_radius, y1 + corner_radius),  # Bottom right
+        (x2 - corner_radius, y2 - corner_radius),  # Top right
+        (x1 + corner_radius, y2 - corner_radius),  # Top left
+    ]
+    
+    angles = [np.pi, 3*np.pi/2, 0, np.pi/2]  # Starting angle for each corner
+    
+    # Generate vertices for each height
+    heights = [z1, z2]
+    for z in heights:
+        for (cx, cy), angle in zip(corners, angles):
+            # Rotate and translate the fillet points
+            rot_matrix = np.array([
+                [np.cos(angle), -np.sin(angle)],
+                [np.sin(angle), np.cos(angle)]
+            ])
+            
+            xy_points = np.vstack((fillet_x, fillet_y))
+            rotated_points = rot_matrix @ xy_points
+            
+            # Add the rotated and translated points
+            for x, y in zip(rotated_points[0] + cx, rotated_points[1] + cy):
+                vertices.append(np.array([x, y, z]))
+    
+    # Convert vertices to numpy array
+    vertices = np.array(vertices)
+    
+    # Generate faces
+    num_corner_points = corner_resolution
+    num_corners = 4
+    
+    # Function to get vertex index, handling wraparound
+    def get_vertex_idx(corner: int, point: int, upper: bool) -> int:
+        base = num_corner_points * corner
+        if upper:
+            base += num_corners * num_corner_points
+        return base + point % num_corner_points
+
+    # Create faces for the fillets
+    for corner in range(num_corners):
+        for point in range(num_corner_points - 1):
+            # Lower triangle
+            faces.append([
+                get_vertex_idx(corner, point, False),
+                get_vertex_idx(corner, point + 1, False),
+                get_vertex_idx(corner, point, True)
+            ])
+            # Upper triangle
+            faces.append([
+                get_vertex_idx(corner, point + 1, False),
+                get_vertex_idx(corner, point + 1, True),
+                get_vertex_idx(corner, point, True)
+            ])
+    
+    # Create faces for the sides
+    for corner in range(num_corners):
+        next_corner = (corner + 1) % num_corners
+        
+        # Connect the last point of current corner to first point of next corner
+        # Lower face
+        faces.append([
+            get_vertex_idx(corner, num_corner_points - 1, False),
+            get_vertex_idx(next_corner, 0, False),
+            get_vertex_idx(corner, num_corner_points - 1, True)
+        ])
+        faces.append([
+            get_vertex_idx(next_corner, 0, False),
+            get_vertex_idx(next_corner, 0, True),
+            get_vertex_idx(corner, num_corner_points - 1, True)
+        ])
+
+    # Create top and bottom faces
+    def add_face(points: list[int], reverse: bool = False) -> None:
+        if reverse:
+            points = points[::-1]
+        for i in range(1, len(points) - 1):
+            faces.append([points[0], points[i], points[i + 1]])
+
+    # Bottom face vertices
+    bottom_face = [get_vertex_idx(c, p, False) 
+                  for c in range(num_corners) 
+                  for p in range(num_corner_points)]
+    add_face(bottom_face, reverse=True)
+
+    # Top face vertices
+    top_face = [get_vertex_idx(c, p, True) 
+                for c in range(num_corners) 
+                for p in range(num_corner_points)]
+    add_face(top_face)
+
+    # Convert faces to numpy array
+    faces = np.array(faces)
+
+    # Create the mesh
+    cuboid = mesh.Mesh(np.zeros(len(faces), dtype=mesh.Mesh.dtype))
+    for i, face in enumerate(faces):
+        for j in range(3):
+            cuboid.vectors[i][j] = vertices[face[j]]
+
+    return cuboid
 
 def create_hemisphere(position: np.ndarray, diameter: float, height: float,
                       theta_resolution: int = 40, phi_resolution: int = 10) -> mesh.Mesh:
@@ -600,9 +745,10 @@ class Plate:
             case TitlePos.RIGHT:
                 top_right[0] += self.config.braille_config.cell_spacing_y
 
-        self.shapes.append(create_cuboid(
+        self.shapes.append(create_filleted_cuboid(
             bottom_left,
-            top_right))
+            top_right,
+            self.config.margin))
 
     def create_title(self):
         if self.config.title_position == TitlePos.NONE:
@@ -717,7 +863,7 @@ class Plate:
         for point in resampled_path:
             self.shapes.append(create_hemisphere(point, self.config.dot_diameter, self.config.dot_height))
 
-    def save_to_stl(self, file_name="output.stl"):
+    def save_to_stl(self, file_name="stl-files/output.stl"):
         # Write the mesh to file
         combined = mesh.Mesh(np.concatenate([shape.data for shape in self.shapes]))
         combined.save(file_name)
