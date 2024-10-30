@@ -28,7 +28,6 @@ method = Method.create_from_complib_id("16694")
 # method.name = "C'bridge"
 
 plate = Plate(method, config)
-
 plate.create_base()
 plate.create_vertical_lines()
 bell = 2
@@ -36,5 +35,9 @@ plate.create_thick_line(bell)
 plate.create_lead_end_dots(bell)
 plate.create_treble_line(bell)
 plate.create_half_lead_lines()
-
 plate.save_to_stl()
+
+plate = Plate(method, config)
+plate.create_base()
+plate.create_title()
+plate.save_to_stl("stl-files/title.stl")

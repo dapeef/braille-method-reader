@@ -777,10 +777,32 @@ def rotate_points(points:np.ndarray, angle:float, rotation_center:np.ndarray=np.
 
     return rotated_points
 
-def align_points_right(points:np.ndarray) -> np.ndarray:
-    max_x = np.max(points[:, 0])
+def align_points(points:np.ndarray, alignment: AlignmentX | AlignmentY) -> np.ndarray:
+    if type(alignment) == AlignmentX:
+        min_x = np.min(points[:, 0])
+        max_x = np.max(points[:, 0])
 
-    return points - np.array([max_x, 0, 0])
+        match alignment:
+            case AlignmentX.LEFT:
+                displacement = np.array([min_x, 0, 0])
+            case AlignmentX.CENTER:
+                displacement = np.array([(min_x + max_x)/2, 0, 0])
+            case AlignmentX.RIGHT:
+                displacement = np.array([max_x, 0, 0])
+
+    if type(alignment) == AlignmentY:
+        min_y = np.min(points[:, 1])
+        max_y = np.max(points[:, 1])
+
+        match alignment:
+            case AlignmentY.TOP:
+                displacement = np.array([0, min_y, 0])
+            case AlignmentY.CENTER:
+                displacement = np.array([0, (min_y + max_y)/2, 0])
+            case AlignmentY.BOTTOM:
+                displacement = np.array([0, max_y, 0])
+        
+    return points - displacement
 
 def plot_3d_path(
     path: npt.NDArray[np.float64],
@@ -871,7 +893,7 @@ class PlateConfig:
 
     reverse_method = False
 
-    title_position = TitlePos.NONE 
+    title_position = TitlePos.CENTER_VERTICAL
     title_language = TitleLanguage.BOTH
     title_text = TitleText.SHORT
 
@@ -961,17 +983,37 @@ class Plate:
                 case TitlePos.TOP:
                     start_position = np.array([0, self.config.braille_config.cell_spacing_y, 0])
                     angle = 0
+                    alignment_x = AlignmentX.LEFT
+                    alignment_y = AlignmentY.TOP
                 case TitlePos.BOTTOM:
                     start_position = np.array([0, -self.base_height - self.config.braille_config.cell_gap_y, 0])
                     angle = 0
+                    alignment_x = AlignmentX.LEFT
+                    alignment_y = AlignmentY.TOP
                 case TitlePos.LEFT:
                     start_position = np.array([-self.config.braille_config.cell_gap_y, 0, 0])
                     angle = -np.pi/2
+                    alignment_x = AlignmentX.LEFT
+                    alignment_y = AlignmentY.TOP
                 case TitlePos.RIGHT:
-                    start_position = np.array([self.base_width +  self.config.braille_config.cell_spacing_y, 0, 0])
+                    start_position = np.array([self.base_width + self.config.braille_config.cell_spacing_y, 0, 0])
                     angle = -np.pi/2
+                    alignment_x = AlignmentX.LEFT
+                    alignment_y = AlignmentY.TOP
+                case TitlePos.CENTER_HORIZONTAL:
+                    start_position = np.array([self.base_width/2, -self.base_height/2, 0])
+                    angle = -np.pi/2
+                    alignment_x = AlignmentX.CENTER
+                    alignment_y = AlignmentY.CENTER
+                case TitlePos.CENTER_VERTICAL:
+                    start_position = np.array([self.base_width/2, -self.base_height/2, 0])
+                    angle = -np.pi/2
+                    alignment_x = AlignmentX.CENTER
+                    alignment_y = AlignmentY.CENTER
 
             points = str_to_dots(title_text, self.config.braille_config)
+            points = align_points(points, alignment_x)
+            points = align_points(points, alignment_y)
             points = rotate_points(points, angle)
             points += start_position
 
@@ -1010,7 +1052,7 @@ class Plate:
                     angle = -np.pi/2
 
             points = str_to_dots(text, self.config.braille_config)
-            points = align_points_right(points)
+            points = align_points(points, AlignmentX.RIGHT)
             points = rotate_points(points, angle)
             points += start_position
 
@@ -1083,4 +1125,3 @@ class Plate:
 
 if __name__ == "__main__":
     import main
-    

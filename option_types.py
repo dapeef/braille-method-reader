@@ -6,6 +6,8 @@ class TitlePos(Enum):
     BOTTOM = auto()
     LEFT = auto()
     RIGHT = auto()
+    CENTER_VERTICAL = auto()
+    CENTER_HORIZONTAL = auto()
     NONE = auto()
 
 class TitleLanguage(Enum):
@@ -20,6 +22,16 @@ class TitleText(Enum):
     FULL_LOWER = auto() # eg "cambridge surprise major"
     SHORT = auto() # eg "Cambridge 8"
     SHORT_LOWER = auto() # eg "cambridge 8"
+
+class AlignmentX(Enum):
+    LEFT = auto()
+    CENTER = auto()
+    RIGHT = auto()
+
+class AlignmentY(Enum):
+    TOP = auto()
+    CENTER = auto()
+    BOTTOM = auto()
 
 class LengthTypes(Enum):
     PLAIN_COURSE = auto()
