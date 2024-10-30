@@ -33,7 +33,7 @@ plate.create_vertical_lines()
 bell = 2
 plate.create_thick_line(bell)
 plate.create_lead_end_dots(bell)
-plate.create_treble_line(bell)
+plate.create_treble_line(blue_line_bell=bell)
 plate.create_half_lead_lines()
 plate.save_to_stl()
 

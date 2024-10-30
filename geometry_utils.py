@@ -1050,16 +1050,15 @@ class Plate:
 
             i += self.method.lead_length
 
-    def create_treble_line(self, bell:int, treble_bell:int=1):
-        # TODO make input params better
-
+    def create_treble_line(self, treble_bell:int=1, blue_line_bell:int|None=None):
         match self.config.treble_type:
             case TrebleType.SOLID:
                 path = Method.path_from_method(self.drawable_rows, treble_bell, self.config.unit_width, self.config.unit_height)
                 self.shapes.append(create_path_object(path, line_config=self.config.treble_line_config))
+                
             case TrebleType.CROSS:
                 paths = Method.passing_point_paths_from_method(self.drawable_rows,
-                                                               bell,
+                                                               blue_line_bell,
                                                                treble_bell,
                                                                self.config.unit_width,
                                                                self.config.unit_height)
