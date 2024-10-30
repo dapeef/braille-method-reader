@@ -39,3 +39,4 @@ class TrebleType(Enum):
 class PathCrossSection(Enum):
     CYLINDER = auto()
     RECTANGLE = auto()
+    DOTTED = auto()

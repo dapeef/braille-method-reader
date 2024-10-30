@@ -97,3 +97,4 @@ if __name__ == "__main__":
 
     print(str_to_braille(string, legible=True))
     plot_3d_path(str_to_dots(string))
+    

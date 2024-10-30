@@ -8,6 +8,13 @@ from braille_utils import BrailleConfig, str_to_dots
 from option_types import *
 
 
+class LineConfig:
+    width = 1.5 # mm
+    height = 0.6 # mm
+    dot_separation = 2.3 # mm
+    cross_section = PathCrossSection.CYLINDER
+
+
 def normalize(v: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     """Normalize a vector."""
     norm = np.linalg.norm(v)
@@ -492,10 +499,9 @@ def create_half_cylinder(start: np.ndarray, end: np.ndarray, diameter: float,
     
     return half_cylinder
 
-def create_path_object(points: np.ndarray, thickness: float, height: float,
-                              cross_section: PathCrossSection = PathCrossSection.CYLINDER,
-                              resolution: int = 10, cap_style: str = "dome",
-                              cap_diameter:float|None = None, cap_height:float|None = None) -> mesh.Mesh:
+def create_path_object(path: np.ndarray, line_config:LineConfig,
+                       resolution: int = 10, cap_style: str = "dome",
+                       cap_diameter:float|None = None, cap_height:float|None = None) -> mesh.Mesh:
     """
     Creates a half-cylinder STL mesh oriented with its axis horizontally and its flat face on z=0.
     
@@ -510,114 +516,127 @@ def create_path_object(points: np.ndarray, thickness: float, height: float,
         mesh.Mesh: The half-cylinder as an STL mesh object.
     """
     # Ensure points is a 2D numpy array with shape [N, 3]
-    assert points.ndim == 2 and points.shape[1] == 3, "Points must be a 2D numpy array of shape [N, 3]"
+    assert path.ndim == 2 and path.shape[1] == 3, "Points must be a 2D numpy array of shape [N, 3]"
     assert cap_style == "dome" or cap_style == "flat", f"Bad cap style: {cap_style}, Choose from \"dome\" or \"none\"."
 
-    radius = thickness / 2
+    if line_config.cross_section in (PathCrossSection.RECTANGLE, PathCrossSection.CYLINDER):
+        path = fillet_path(path, resolution=10, radius=line_config.width/4)
 
-    if cross_section == PathCrossSection.RECTANGLE:
-        resolution = 3
+        radius = line_config.width / 2
 
-    # Generate vertices for the half-cylinder along its length
-    vertices = []
-    perp_vector1 = np.array([0, 0, 1])
+        if line_config.cross_section == PathCrossSection.RECTANGLE:
+            resolution = 3
 
-    for i in range(len(points)):
-        if i == 0 or i == len(points) - 1:
-            # Calculate radius and direction of the cylinder
-            if i == 0:
-                axis_vector = points[1] - points[0]
-            else:
-                axis_vector = points[-1] - points[-2]
+        # Generate vertices for the half-cylinder along its length
+        vertices = []
+        perp_vector1 = np.array([0, 0, 1])
 
-            axis_direction = normalize(axis_vector)
+        for i in range(len(path)):
+            if i == 0 or i == len(path) - 1:
+                # Calculate radius and direction of the cylinder
+                if i == 0:
+                    axis_vector = path[1] - path[0]
+                else:
+                    axis_vector = path[-1] - path[-2]
+
+                axis_direction = normalize(axis_vector)
+                
+                # Calculate perpendicular vectors for the circular cross-section orientation
+                perp_vector2 = np.cross(axis_direction, perp_vector1)
             
-            # Calculate perpendicular vectors for the circular cross-section orientation
-            perp_vector2 = np.cross(axis_direction, perp_vector1)
-        
-        else:
-            in_vector = points[i] - points[i-1]
-            in_vector = normalize(in_vector)
-            out_vector = points[i+1] - points[i]
-            out_vector = normalize(out_vector)
-
-            if np.allclose(in_vector, out_vector):
-                perp_vector2 = np.cross(out_vector, perp_vector1)
-                
             else:
-                perp_vector2 = out_vector - in_vector
-                perp_vector2 = normalize(perp_vector2)
-                
-                # If it's a left-hand turn, the normal vector needs to be flipped to stop the line from turning inside out
-                if np.allclose(normalize(np.cross(in_vector, out_vector)), [0, 0, 1]):
-                    perp_vector2 *= -1
+                in_vector = path[i] - path[i-1]
+                in_vector = normalize(in_vector)
+                out_vector = path[i+1] - path[i]
+                out_vector = normalize(out_vector)
+
+                if np.allclose(in_vector, out_vector):
+                    perp_vector2 = np.cross(out_vector, perp_vector1)
+                    
+                else:
+                    perp_vector2 = out_vector - in_vector
+                    perp_vector2 = normalize(perp_vector2)
+                    
+                    # If it's a left-hand turn, the normal vector needs to be flipped to stop the line from turning inside out
+                    if np.allclose(normalize(np.cross(in_vector, out_vector)), [0, 0, 1]):
+                        perp_vector2 *= -1
 
 
-        match cross_section:
-            case PathCrossSection.CYLINDER:
-                for k in range(resolution + 1):
-                    theta = np.pi/2 - np.pi * (k / resolution)  # Half-circle (0 to -pi)
-                    x = points[i] + height * np.cos(theta) * perp_vector1 + radius * np.sin(theta) * perp_vector2
-                    vertices.append(x)
+            match line_config.cross_section:
+                case PathCrossSection.CYLINDER:
+                    for k in range(resolution + 1):
+                        theta = np.pi/2 - np.pi * (k / resolution)  # Half-circle (0 to -pi)
+                        x = path[i] + line_config.height * np.cos(theta) * perp_vector1 + radius * np.sin(theta) * perp_vector2
+                        vertices.append(x)
 
-            case PathCrossSection.RECTANGLE:
-                point:np.ndarray = points[i] + radius * perp_vector2
-                vertices.append(point.copy())
-                point += height * perp_vector1
-                vertices.append(point.copy())
-                point -= 2 * radius * perp_vector2
-                vertices.append(point.copy())
-                point -= height * perp_vector1
-                vertices.append(point.copy())
-    
-    # Create faces for curved surface
-    faces = []
-    for i in range(len(points) - 1):
-        for j in range(resolution):
-            a = i * (resolution + 1) + j
-            b = a + (resolution + 1)
-            c = a + 1
-            d = b + 1
-            faces.append([a, b, c])
-            faces.append([c, b, d])
+                case PathCrossSection.RECTANGLE:
+                    point:np.ndarray = path[i] + radius * perp_vector2
+                    vertices.append(point.copy())
+                    point += line_config.height * perp_vector1
+                    vertices.append(point.copy())
+                    point -= 2 * radius * perp_vector2
+                    vertices.append(point.copy())
+                    point -= line_config.height * perp_vector1
+                    vertices.append(point.copy())
+        
+        # Create faces for curved surface
+        faces = []
+        for i in range(len(path) - 1):
+            for j in range(resolution):
+                a = i * (resolution + 1) + j
+                b = a + (resolution + 1)
+                c = a + 1
+                d = b + 1
+                faces.append([a, b, c])
+                faces.append([c, b, d])
 
-    # # Add the center points at each flat face
-    # center_start_index = len(vertices)
-    # vertices.append(points[0])
-    # center_end_index = len(vertices)
-    # vertices.append(points[1])
+        # # Add the center points at each flat face
+        # center_start_index = len(vertices)
+        # vertices.append(points[0])
+        # center_end_index = len(vertices)
+        # vertices.append(points[1])
 
-    # Create faces for the flat semi-circular faces
-    # for j in range(theta_resolution):
-    #     a = j
-    #     b = j + 1
-    #     faces.append([a, b, center_start_index])  # Start flat face
-    #     a = (theta_resolution + 1) + j
-    #     b = a + 1
-    #     faces.append([a, center_end_index, b])  # End flat face
+        # Create faces for the flat semi-circular faces
+        # for j in range(theta_resolution):
+        #     a = j
+        #     b = j + 1
+        #     faces.append([a, b, center_start_index])  # Start flat face
+        #     a = (theta_resolution + 1) + j
+        #     b = a + 1
+        #     faces.append([a, center_end_index, b])  # End flat face
 
-    # Convert to numpy arrays for vertices and faces
-    vertices = np.array(vertices)
-    faces = np.array(faces)
+        # Convert to numpy arrays for vertices and faces
+        vertices = np.array(vertices)
+        faces = np.array(faces)
 
-    # Initialize the mesh and set up the vectors for each face
-    half_cylinder = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
-    for i, f in enumerate(faces):
-        for j in range(3):
-            half_cylinder.vectors[i][j] = vertices[f[j]]
-    
-    # Add caps
-    if cap_style == "dome":
-        if cap_diameter is None:
-            cap_diameter = thickness
-        if cap_height is None:
-            cap_height = height
-        start_cap = create_hemisphere(points[ 0], cap_diameter, cap_height, theta_resolution=2*resolution, phi_resolution=int(resolution/2))
-        end_cap =   create_hemisphere(points[-1], cap_diameter, cap_height, theta_resolution=2*resolution, phi_resolution=int(resolution/2))
+        # Initialize the mesh and set up the vectors for each face
+        path_mesh = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
+        for i, f in enumerate(faces):
+            for j in range(3):
+                path_mesh.vectors[i][j] = vertices[f[j]]
+        
+        # Add caps
+        if cap_style == "dome":
+            if cap_diameter is None:
+                cap_diameter = line_config.width
+            if cap_height is None:
+                cap_height = line_config.height
+            start_cap = create_hemisphere(path[ 0], cap_diameter, cap_height, theta_resolution=2*resolution, phi_resolution=int(resolution/2))
+            end_cap =   create_hemisphere(path[-1], cap_diameter, cap_height, theta_resolution=2*resolution, phi_resolution=int(resolution/2))
 
-        half_cylinder = mesh.Mesh(np.concatenate([half_cylinder.data, start_cap.data, end_cap.data]))
+            path_mesh = mesh.Mesh(np.concatenate([path_mesh.data, start_cap.data, end_cap.data]))
 
-    return half_cylinder
+    elif line_config.cross_section == PathCrossSection.DOTTED:
+        dot_meshes = []
+
+        resampled_path = resample_path(path, line_config.dot_separation)
+
+        for point in resampled_path:
+            dot_meshes.append(create_hemisphere(point, line_config.width, line_config.height))
+
+        path_mesh = mesh.Mesh(np.concatenate([dot.data for dot in dot_meshes]))
+
+    return path_mesh
 
 def fillet_path(path: npt.NDArray[np.float64], resolution: int, radius: float = 1.0) -> npt.NDArray[np.float64]:
     """
@@ -822,27 +841,31 @@ class PlateConfig:
     unit_width = 5 # mm
     unit_height = 2.5 # mm
 
-    thick_line_width = 1.5 # mm
-    thick_line_height = 1.5 # mm
-    thick_line_cross_section = PathCrossSection.RECTANGLE
+    thick_line_config = LineConfig()
+    thick_line_config.width = 1.5 # mm
+    thick_line_config.height = 1.5 # mm
+    thick_line_config.cross_section = PathCrossSection.RECTANGLE
 
-    thin_line_width = 1 # mm
-    thin_line_height = .5 # mm
-    thin_line_cross_section = PathCrossSection.CYLINDER
+    thin_line_config = LineConfig()
+    thin_line_config.width = 1 # mm
+    thin_line_config.height = .5 # mm
+    thin_line_config.cross_section = PathCrossSection.CYLINDER
 
-    treble_line_width = 1.5 # mm
-    treble_line_height = 0.6 # mm
-    treble_line_dot_separation = 2.3 # mm
-    treble_line_cross_section = PathCrossSection.CYLINDER # Only used if treble_type is "cross"
+    treble_line_config = LineConfig()
+    treble_line_config.width = 1.5 # mm
+    treble_line_config.height = 0.6 # mm
+    treble_line_config.dot_separation = 2.3 # mm
+    treble_line_config.cross_section = PathCrossSection.CYLINDER # Only used if treble_type is "cross"
     treble_type = TrebleType.DOTTED
 
-    half_lead_line_width = 1.5 # mm
-    half_lead_line_height = 0.6 # mm
-    half_lead_line_dot_separation = 2.3 # mm
-    half_lead_line_cross_section = PathCrossSection.CYLINDER
+    half_lead_line_config = LineConfig()
+    half_lead_line_config.width = 1.5 # mm
+    half_lead_line_config.height = 0.6 # mm
+    half_lead_line_config.dot_separation = 2.3 # mm
+    half_lead_line_config.cross_section = PathCrossSection.DOTTED
 
-    lead_end_dot_diameter = 2 * thick_line_width # mm
-    lead_end_dot_height = 2 * thick_line_height # mm
+    lead_end_dot_diameter = 2 * thick_line_config.width # mm
+    lead_end_dot_height = 2 * thick_line_config.height # mm
 
     length_type = LengthTypes.SINGLE_LEAD
 
@@ -1000,20 +1023,14 @@ class Plate:
         # Vertical lines
         for i in range(self.method.stage):
             self.shapes.append(create_path_object(
-                np.array([[i * self.config.unit_width, 0, 0],
-                          [i * self.config.unit_width, -self.base_height, 0]]),
-                thickness=self.config.thin_line_width,
-                height=self.config.thin_line_height,
-                cross_section=self.config.thin_line_cross_section))
+                np.array([np.array([i * self.config.unit_width,
+                                    -x / (len(self.drawable_rows) - 1) * self.base_height,
+                                    0]) for x in range(len(self.drawable_rows))]),
+                line_config=self.config.thin_line_config))
 
     def create_thick_line(self, bell:int):
         path = Method.path_from_method(self.drawable_rows, bell, self.config.unit_width, self.config.unit_height)
-        smoothed_path = fillet_path(path, resolution=10, radius=self.config.thick_line_width/4)
-        self.shapes.append(create_path_object(smoothed_path,
-                                                     self.config.thick_line_width,
-                                                     self.config.thick_line_height,
-                                                     cross_section=self.config.thick_line_cross_section,
-                                                     resolution=10))
+        self.shapes.append(create_path_object(path, line_config=self.config.thick_line_config))
         # plot_3d_path(path)
         # plot_3d_path(smoothed_path)
         # plot_3d_path(resampled_path)
@@ -1033,23 +1050,21 @@ class Plate:
         i = self.method.lead_length / 2
 
         while i < len(self.drawable_rows):
-            self.shapes.append(create_path_object(np.array([
-                    np.array([0, -i * self.config.unit_height, 0]),
-                    np.array([self.base_width, -i * self.config.unit_height, 0])]),
-                self.config.half_lead_line_width, self.config.half_lead_line_height,
-                self.config.half_lead_line_cross_section))
+            self.shapes.append(create_path_object(np.array(
+                [np.array([x / (self.method.stage - 1) * self.base_width,
+                           -i * self.config.unit_height,
+                           0]) for x in range(self.method.stage)]),
+                line_config=self.config.half_lead_line_config))
 
             i += self.method.lead_length
-        
 
     def create_treble_line(self, bell:int, treble_bell:int=1):
+        # TODO make input params better
+
         match self.config.treble_type:
-            case TrebleType.DOTTED:
-                path = Method.path_from_method(self.drawable_rows, bell, self.config.unit_width, self.config.unit_height)
-                resampled_path = resample_path(path, self.config.treble_line_dot_separation)
-                for point in resampled_path:
-                    self.shapes.append(create_hemisphere(point, self.config.treble_line_width, self.config.treble_line_height))
-            
+            case TrebleType.SOLID:
+                path = Method.path_from_method(self.drawable_rows, treble_bell, self.config.unit_width, self.config.unit_height)
+                self.shapes.append(create_path_object(path, line_config=self.config.treble_line_config))
             case TrebleType.CROSS:
                 paths = Method.passing_point_paths_from_method(self.drawable_rows,
                                                                bell,
@@ -1058,20 +1073,7 @@ class Plate:
                                                                self.config.unit_height)
 
                 for path in paths:
-                    self.shapes.append(create_path_object(path,
-                                                          self.config.treble_line_width,
-                                                          self.config.treble_line_height,
-                                                          cross_section=self.config.treble_line_cross_section,
-                                                          resolution=10))
-            
-            case TrebleType.SOLID:
-                path = Method.path_from_method(self.drawable_rows, treble_bell, self.config.unit_width, self.config.unit_height)
-                smoothed_path = fillet_path(path, resolution=10, radius=self.config.treble_line_width/4)
-                self.shapes.append(create_path_object(smoothed_path,
-                                                            self.config.treble_line_width,
-                                                            self.config.treble_line_height,
-                                                            cross_section=self.config.treble_line_cross_section,
-                                                            resolution=10))
+                    self.shapes.append(create_path_object(path, line_config=self.config.treble_line_config))
 
     def save_to_stl(self, file_name="stl-files/output.stl"):
         # Write the mesh to file
@@ -1081,3 +1083,4 @@ class Plate:
 
 if __name__ == "__main__":
     import main
+    
