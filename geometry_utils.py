@@ -14,6 +14,91 @@ def normalize(v: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     return v if norm == 0 else v / norm
 
 
+def select_vertices(mesh, x_range=None, y_range=None, z_range=None):
+    """
+    Select vertices based on coordinate ranges.
+    
+    Args:
+        plate_mesh: numpy-stl mesh object
+        x_range: tuple of (min, max) or conditions ('>', '<', '>=', '<=') with value
+                e.g., ('>', 0) or (0, 100) or None for no x constraint
+        y_range: same format as x_range
+        z_range: same format as x_range
+    
+    Returns:
+        List of (triangle_idx, vertex_idx) tuples for matching vertices
+    """
+    selected = []
+    eps = 1e-6
+    
+    def check_range(value, range_cond):
+        if range_cond is None:
+            return True
+        if isinstance(range_cond, tuple):
+            if len(range_cond) == 2 and isinstance(range_cond[0], (int, float)):
+                # Range is (min, max)
+                return range_cond[0] - eps <= value <= range_cond[1] + eps
+            else:
+                # Range is (operator, value)
+                op, val = range_cond
+                if op == '>': return value > val - eps
+                if op == '<': return value < val + eps
+                if op == '>=': return value >= val - eps
+                if op == '<=': return value <= val + eps
+        return False
+
+    # Check each vertex in each triangle
+    for i in range(len(mesh.vectors)):
+        for j in range(3):
+            vertex = mesh.vectors[i][j]
+            if (check_range(vertex[0], x_range) and 
+                check_range(vertex[1], y_range) and 
+                check_range(vertex[2], z_range)):
+                selected.append((i, j))
+                
+    return selected
+
+def translate_vertices(mesh, vertices, translation):
+    """
+    Translate selected vertices by a vector.
+    
+    Args:
+        plate_mesh: numpy-stl mesh object
+        vertices: List of (triangle_idx, vertex_idx) tuples
+        translation: numpy array [x, y, z] of translation values
+    """
+    for tri_idx, vert_idx in vertices:
+        mesh.vectors[tri_idx][vert_idx] += translation
+    mesh.update_normals()
+
+def scale_vertices(mesh, vertices, scale_factor, origin=np.array([0, 0, 0])):
+    """
+    Scale selected vertices about a point (default is origin).
+    
+    Args:
+        plate_mesh: numpy-stl mesh object
+        vertices: List of (triangle_idx, vertex_idx) tuples
+        scale_factor: float or [x, y, z] array for non-uniform scaling
+        origin: Point to scale about, defaults to [0, 0, 0]
+    """
+    scale_factor = np.array(scale_factor)
+    if scale_factor.size == 1:
+        scale_factor = np.array([scale_factor] * 3)
+    
+    for tri_idx, vert_idx in vertices:
+        # Translate to origin
+        vertex = mesh.vectors[tri_idx][vert_idx]
+        centered = vertex - origin
+        
+        # Scale
+        scaled = centered * scale_factor
+        
+        # Translate back
+        mesh.vectors[tri_idx][vert_idx] = scaled + origin
+    
+    mesh.update_normals()
+
+
 def create_cuboid(corner1:np.ndarray, corner2:np.ndarray) -> mesh.Mesh:
     # Define the 8 vertices of the cube
     vertices = np.array([
@@ -194,6 +279,65 @@ def create_filleted_cuboid(
             cuboid.vectors[i][j] = vertices[face[j]]
 
     return cuboid
+
+def create_base_from_template(file_name: str, 
+                              corner1: Tuple[float, float, float],
+                              corner2: Tuple[float, float, float],
+                              corner_radius: float,
+                              has_hole:bool):
+    TEMPLATE_WIDTH = 40
+    TEMPLATE_HEIGHT = 40
+    TEMPLATE_RADIUS = 10
+    TEMPLATE_THICKNESS = 1
+
+    radius_scale_factor = [corner_radius / TEMPLATE_RADIUS,
+                           corner_radius / TEMPLATE_RADIUS,
+                           (corner2[2] - corner1[2]) / TEMPLATE_THICKNESS]
+
+    template_mesh = mesh.Mesh.from_file(file_name)
+    
+    # Get corner groups
+    top_left_vertices = select_vertices(template_mesh, x_range=('<', 0), y_range=('>', 0))
+    top_right_vertices = select_vertices(template_mesh, x_range=('>', 0), y_range=('>', 0))
+    bottom_left_vertices = select_vertices(template_mesh, x_range=('<', 0), y_range=('<', 0))
+    bottom_right_vertices = select_vertices(template_mesh, x_range=('>', 0), y_range=('<', 0))
+
+    # Top left
+    if not has_hole:
+        scale_vertices(template_mesh, top_left_vertices,
+                        scale_factor=radius_scale_factor[:2] + [1], # Scale only horizontally
+                        origin=np.array([-TEMPLATE_WIDTH/2, TEMPLATE_HEIGHT/2, 0]))
+    scale_vertices(template_mesh, top_left_vertices,
+                    scale_factor=[1, 1, radius_scale_factor[2]]) # Always scale vertically
+    translate_vertices(template_mesh, top_left_vertices, np.array([corner1[0] + TEMPLATE_WIDTH/2,
+                                                                   corner2[1] - TEMPLATE_HEIGHT/2,
+                                                                   corner2[2]]))
+
+    # Top right
+    scale_vertices(template_mesh, top_right_vertices,
+                   scale_factor=radius_scale_factor,
+                   origin=np.array([TEMPLATE_WIDTH/2, TEMPLATE_HEIGHT/2, 0]))
+    translate_vertices(template_mesh, top_right_vertices, np.array([corner2[0] - TEMPLATE_WIDTH/2,
+                                                                    corner2[1] - TEMPLATE_HEIGHT/2,
+                                                                    corner2[2]]))
+
+    # Bottom left
+    scale_vertices(template_mesh, bottom_left_vertices,
+                   scale_factor=radius_scale_factor,
+                   origin=np.array([-TEMPLATE_WIDTH/2, -TEMPLATE_HEIGHT/2, 0]))
+    translate_vertices(template_mesh, bottom_left_vertices, np.array([corner1[0] + TEMPLATE_WIDTH/2,
+                                                                    corner1[1] + TEMPLATE_HEIGHT/2,
+                                                                    corner2[2]]))
+
+    # Bottom right
+    scale_vertices(template_mesh, bottom_right_vertices,
+                   scale_factor=radius_scale_factor,
+                   origin=np.array([TEMPLATE_WIDTH/2, -TEMPLATE_HEIGHT/2, 0]))
+    translate_vertices(template_mesh, bottom_right_vertices, np.array([corner2[0] - TEMPLATE_WIDTH/2,
+                                                                    corner1[1] + TEMPLATE_HEIGHT/2,
+                                                                    corner2[2]]))
+
+    return template_mesh
 
 def create_hemisphere(position: np.ndarray, diameter: float, height: float,
                       theta_resolution: int = 40, phi_resolution: int = 10) -> mesh.Mesh:
@@ -702,6 +846,10 @@ class LengthTypes(Enum):
     PLAIN_COURSE = auto()
     SINGLE_LEAD = auto()
 
+class BaseType(Enum):
+    HOLE = auto()
+    NO_HOLE = auto()
+
 
 class PlateConfig:
     unit_thickness = .4 # mm
@@ -727,6 +875,7 @@ class PlateConfig:
     title_text = TitleText.SHORT
 
     margin = 5 # mm - Border around the edges
+    base_type = BaseType.HOLE
 
     braille_config = BrailleConfig()
 
@@ -767,10 +916,27 @@ class Plate:
             case TitlePos.RIGHT:
                 top_right[0] += self.config.braille_config.cell_spacing_y
 
-        self.shapes.append(create_filleted_cuboid(
+        match self.config.base_type:
+            case BaseType.HOLE:
+                file_name = "templates/base_template_hole.stl"
+                has_hole = True
+            case BaseType.NO_HOLE:
+                file_name = "templates/base_template_no_hole.stl"
+                has_hole = False
+            case _:
+                raise Exception(f"Bad base_type of {self.config.base_type}")
+        
+        # self.shapes.append(create_filleted_cuboid(
+        #     bottom_left,
+        #     top_right,
+        #     self.config.margin))
+
+        self.shapes.append(create_base_from_template(
+            file_name,
             bottom_left,
             top_right,
-            self.config.margin))
+            self.config.margin,
+            has_hole))
 
     def create_title(self):
         if self.config.title_position == TitlePos.NONE:
