@@ -1,21 +1,9 @@
 import numpy as np
+from config import BrailleConfig
 
 ascii_chars = " A1B'K2L@CIF/MSP\"E3H9O6R^DJG>NTQ,*5<-U8V.%[$+X!&;:4\\0Z7(_?W]#Y)=".lower()
 braille_chars = "⠀⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏⠐⠑⠒⠓⠔⠕⠖⠗⠘⠙⠚⠛⠜⠝⠞⠟⠠⠡⠢⠣⠤⠥⠦⠧⠨⠩⠪⠫⠬⠭⠮⠯⠰⠱⠲⠳⠴⠵⠶⠷⠸⠹⠺⠻⠼⠽⠾⠿"
 numbers = "0123456789"
-
-
-class BrailleConfig:
-    dot_diameter = 1.5 # mm
-    dot_height = 0.6 # mm
-    dot_spacing = 2.3 # mm
-    cell_spacing_x = 6.1 # mm
-    cell_spacing_y = 10 # mm
-
-    cell_gap_x = cell_spacing_x - dot_spacing
-    cell_gap_y = cell_spacing_y - dot_spacing * 2
-
-    include_caps = True # Should the braille display capital letters, or should they all be lower
 
 
 def str_to_braille(string:str, legible:bool=False) -> str:
@@ -97,4 +85,3 @@ if __name__ == "__main__":
 
     print(str_to_braille(string, legible=True))
     plot_3d_path(str_to_dots(string))
-    
