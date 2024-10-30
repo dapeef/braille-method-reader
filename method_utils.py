@@ -57,6 +57,23 @@ class Method:
         
         return np.array(path)
     
+    @staticmethod
+    def passing_point_paths_from_method(rows:list[str], target_bell:int, transient_bell:int, unit_width:float, unit_height:float):
+        target_bell = str(target_bell)
+        transient_bell = str(transient_bell)
+
+        paths = []
+        
+        for i in range(len(rows) - 1):
+            if rows[i].index(target_bell) == rows[i+1].index(transient_bell) or \
+               rows[i+1].index(target_bell) == rows[i].index(transient_bell):
+                paths.append(np.array([
+                    np.array([rows[i].index(transient_bell) * unit_width, -i * unit_height, 0]),
+                    np.array([rows[i+1].index(transient_bell) * unit_width, -(i+1) * unit_height, 0])]))
+        
+        return np.array(paths)
+    
+
     def get_first_lead(self) -> list[str]:
         return self.rows[0:self.lead_length+1]
 

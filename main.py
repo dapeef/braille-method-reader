@@ -1,4 +1,5 @@
-from geometry_utils import Plate, PlateConfig, TitlePos, TitleLanguage, TitleText, LengthTypes
+from geometry_utils import Plate, PlateConfig
+from option_types import *
 from method_utils import Method
 
 
@@ -8,6 +9,10 @@ config.unit_width = 5 # mm
 config.unit_height = 2.5 # mm
 
 config.length_type = LengthTypes.SINGLE_LEAD
+
+config.treble_type = TrebleType.CROSS
+config.treble_line_height = config.thick_line_height
+config.treble_line_width = config.thick_line_width / 2
 
 
 # Plain bob 5 = 10550
@@ -21,12 +26,10 @@ method = Method.create_from_complib_id("16694")
 plate = Plate(method, config)
 
 plate.create_base()
-plate.create_title()
 plate.create_vertical_lines()
 bell = 2
 plate.create_thick_line(bell)
 plate.create_lead_end_dots(bell)
-plate.create_place_bell_label(bell)
-plate.create_dotted_line()
+plate.create_treble_line(bell)
 
 plate.save_to_stl()

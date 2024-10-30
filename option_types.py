@@ -29,6 +29,12 @@ class BaseType(Enum):
     HOLE = auto()
     NO_HOLE = auto()
 
+class TrebleType(Enum):
+    DOTTED = auto()
+    CROSS = auto()
+    SOLID = auto()
+    NONE = auto()
+
 
 class PathCrossSection(Enum):
     CYLINDER = auto()

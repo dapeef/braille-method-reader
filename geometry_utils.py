@@ -825,12 +825,17 @@ class PlateConfig:
     thick_line_width = 1.5 # mm
     thick_line_height = 1.5 # mm
     thick_line_cross_section = PathCrossSection.RECTANGLE
+
     thin_line_width = 1 # mm
     thin_line_height = .5 # mm
     thin_line_cross_section = PathCrossSection.CYLINDER
-    dot_diameter = 1.5 # mm
-    dot_height = 0.6 # mm
-    dot_separation = 2.3 # mm
+
+    treble_line_width = 1.5 # mm
+    treble_line_height = 0.6 # mm
+    treble_line_dot_separation = 2.3 # mm
+    treble_line_cross_section = PathCrossSection.CYLINDER # Only used if treble_type is "cross"
+    treble_type = TrebleType.DOTTED
+
     lead_end_dot_diameter = 2 * thick_line_width # mm
     lead_end_dot_height = 2 * thick_line_height # mm
 
@@ -1014,11 +1019,36 @@ class Plate:
 
             i += self.method.lead_length
 
-    def create_dotted_line(self, bell:int=1):
-        path = Method.path_from_method(self.drawable_rows, bell, self.config.unit_width, self.config.unit_height)
-        resampled_path = resample_path(path, self.config.dot_separation)
-        for point in resampled_path:
-            self.shapes.append(create_hemisphere(point, self.config.dot_diameter, self.config.dot_height))
+    def create_treble_line(self, bell:int, treble_bell:int=1):
+        match self.config.treble_type:
+            case TrebleType.DOTTED:
+                path = Method.path_from_method(self.drawable_rows, bell, self.config.unit_width, self.config.unit_height)
+                resampled_path = resample_path(path, self.config.treble_line_dot_separation)
+                for point in resampled_path:
+                    self.shapes.append(create_hemisphere(point, self.config.treble_line_width, self.config.treble_line_height))
+            
+            case TrebleType.CROSS:
+                paths = Method.passing_point_paths_from_method(self.drawable_rows,
+                                                               bell,
+                                                               treble_bell,
+                                                               self.config.unit_width,
+                                                               self.config.unit_height)
+
+                for path in paths:
+                    self.shapes.append(create_path_object(path,
+                                                          self.config.treble_line_width,
+                                                          self.config.treble_line_height,
+                                                          cross_section=self.config.treble_line_cross_section,
+                                                          resolution=10))
+            
+            case TrebleType.SOLID:
+                path = Method.path_from_method(self.drawable_rows, treble_bell, self.config.unit_width, self.config.unit_height)
+                smoothed_path = fillet_path(path, resolution=10, radius=self.config.treble_line_width/4)
+                self.shapes.append(create_path_object(smoothed_path,
+                                                            self.config.treble_line_width,
+                                                            self.config.treble_line_height,
+                                                            cross_section=self.config.treble_line_cross_section,
+                                                            resolution=10))
 
     def save_to_stl(self, file_name="stl-files/output.stl"):
         # Write the mesh to file
