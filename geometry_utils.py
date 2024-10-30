@@ -4,8 +4,8 @@ from stl import mesh
 import numpy.typing as npt
 import matplotlib.pyplot as plt
 from method_utils import Method
-from enum import Enum, auto
 from braille_utils import BrailleConfig, str_to_dots
+from option_types import *
 
 
 def normalize(v: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
@@ -492,10 +492,6 @@ def create_half_cylinder(start: np.ndarray, end: np.ndarray, diameter: float,
     
     return half_cylinder
 
-class PathCrossSection(Enum):
-    CYLINDER = auto()
-    RECTANGLE = auto()
-
 def create_path_object(points: np.ndarray, thickness: float, height: float,
                               cross_section: PathCrossSection = PathCrossSection.CYLINDER,
                               resolution: int = 10, cap_style: str = "dome",
@@ -819,36 +815,6 @@ def plot_3d_path(
     ax.set_zlim(mid_z - max_range, mid_z + max_range)
     
     plt.show()
-
-
-class TitlePos(Enum):
-    # Where to put the title
-    TOP = auto()
-    BOTTOM = auto()
-    LEFT = auto()
-    RIGHT = auto()
-    NONE = auto()
-
-class TitleLanguage(Enum):
-    # Whether to write the title in braille or latin script
-    BRAILLE = auto()
-    LATIN = auto()
-    BOTH = auto()
-
-class TitleText(Enum):
-    # What text to write for the title
-    FULL = auto() # eg "Cambridge Surprise Major"
-    FULL_LOWER = auto() # eg "cambridge surprise major"
-    SHORT = auto() # eg "Cambridge 8"
-    SHORT_LOWER = auto() # eg "cambridge 8"
-
-class LengthTypes(Enum):
-    PLAIN_COURSE = auto()
-    SINGLE_LEAD = auto()
-
-class BaseType(Enum):
-    HOLE = auto()
-    NO_HOLE = auto()
 
 
 class PlateConfig:
