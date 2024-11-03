@@ -1,11 +1,11 @@
 from option_types import *
 
 class BrailleConfig:
-    dot_diameter = 1.5 # mm
-    dot_height = 0.6 # mm
-    dot_spacing = 2.3 # mm
-    cell_spacing_x = 6.1 # mm
-    cell_spacing_y = 10 # mm
+    dot_diameter = 1.6 # mm
+    dot_height = 0.9 # mm
+    dot_spacing = 2.5 # mm
+    cell_spacing_x = 7.6 # mm
+    cell_spacing_y = 10.2 # mm
 
     cell_gap_x = cell_spacing_x - dot_spacing
     cell_gap_y = cell_spacing_y - dot_spacing * 2
@@ -19,7 +19,8 @@ class LineConfig:
     cross_section = PathCrossSection.CYLINDER
 
 class PlateConfig:
-    unit_thickness = .4 # mm
+    plate_thickness = .4 # mm
+
     unit_width = 5 # mm
     unit_height = 2.5 # mm
 
@@ -41,10 +42,10 @@ class PlateConfig:
     treble_type = TrebleType.DOTTED
 
     half_lead_line_config = LineConfig()
-    half_lead_line_config.width = 1.5 # mm
-    half_lead_line_config.height = 0.6 # mm
-    half_lead_line_config.dot_separation = 2.3 # mm
-    half_lead_line_config.cross_section = PathCrossSection.DOTTED
+    half_lead_line_config.width = 1.6 # mm
+    half_lead_line_config.height = 0.8 # mm
+    half_lead_line_config.dot_separation = 2.5 # mm
+    half_lead_line_config.cross_section = PathCrossSection.CYLINDER
 
     lead_end_dot_diameter = 2 * thick_line_config.width # mm
     lead_end_dot_height = 2 * thick_line_config.height # mm

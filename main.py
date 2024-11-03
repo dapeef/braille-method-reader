@@ -4,7 +4,9 @@ from method_utils import Method
 
 
 config = PlateConfig()
-config.unit_thickness = .4 # mm
+
+config.plate_thickness = .4 # mm
+
 config.unit_width = 5 # mm
 config.unit_height = 2.5 # mm
 
@@ -15,8 +17,9 @@ config.treble_line_config.cross_section = PathCrossSection.CYLINDER
 config.treble_line_config.height = config.thick_line_config.height
 config.treble_line_config.width = config.thick_line_config.width / 2
 
+config.title_text = TitleText.FULL
 
-# config.reverse_method = True
+config.reverse_method = False
 
 
 # Plain bob 5 = 10550
@@ -27,6 +30,7 @@ config.treble_line_config.width = config.thick_line_config.width / 2
 method = Method.create_from_complib_id("16694")
 # method.name = "C'bridge"
 
+# Method plate
 plate = Plate(method, config)
 plate.create_base()
 plate.create_vertical_lines()
@@ -37,6 +41,7 @@ plate.create_treble_line(blue_line_bell=bell)
 plate.create_half_lead_lines()
 plate.save_to_stl()
 
+# Title plate
 plate = Plate(method, config)
 plate.create_base()
 plate.create_title()

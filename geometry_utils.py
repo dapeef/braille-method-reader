@@ -4,7 +4,7 @@ from stl import mesh
 import numpy.typing as npt
 import matplotlib.pyplot as plt
 from method_utils import Method
-from braille_utils import BrailleConfig, str_to_dots
+from braille_utils import str_to_dots
 from option_types import *
 from config import LineConfig, PlateConfig
 
@@ -876,7 +876,7 @@ class Plate:
         bottom_left = np.array([
             -self.config.margin,
             -self.base_height - self.config.margin,
-            -self.config.unit_thickness])
+            -self.config.plate_thickness])
         top_right = np.array([
             self.base_width + self.config.margin,
             self.config.margin,
@@ -935,33 +935,39 @@ class Plate:
                     angle = 0
                     alignment_x = AlignmentX.LEFT
                     alignment_y = AlignmentY.TOP
+                    max_length = self.base_width
                 case TitlePos.BOTTOM:
                     start_position = np.array([0, -self.base_height - self.config.braille_config.cell_gap_y, 0])
                     angle = 0
                     alignment_x = AlignmentX.LEFT
                     alignment_y = AlignmentY.TOP
+                    max_length = self.base_width
                 case TitlePos.LEFT:
                     start_position = np.array([-self.config.braille_config.cell_gap_y, 0, 0])
                     angle = -np.pi/2
                     alignment_x = AlignmentX.LEFT
                     alignment_y = AlignmentY.TOP
+                    max_length = self.base_height
                 case TitlePos.RIGHT:
                     start_position = np.array([self.base_width + self.config.braille_config.cell_spacing_y, 0, 0])
                     angle = -np.pi/2
                     alignment_x = AlignmentX.LEFT
                     alignment_y = AlignmentY.TOP
+                    max_length = self.base_height
                 case TitlePos.CENTER_HORIZONTAL:
                     start_position = np.array([self.base_width/2, -self.base_height/2, 0])
                     angle = -np.pi/2
                     alignment_x = AlignmentX.CENTER
                     alignment_y = AlignmentY.CENTER
+                    max_length = self.base_width
                 case TitlePos.CENTER_VERTICAL:
                     start_position = np.array([self.base_width/2, -self.base_height/2, 0])
                     angle = -np.pi/2
                     alignment_x = AlignmentX.CENTER
                     alignment_y = AlignmentY.CENTER
+                    max_length = self.base_height
 
-            points = str_to_dots(title_text, self.config.braille_config)
+            points = str_to_dots(title_text, self.config.braille_config, max_length)
             points = align_points(points, alignment_x)
             points = align_points(points, alignment_y)
             points = rotate_points(points, angle)
@@ -1039,7 +1045,10 @@ class Plate:
             i += self.method.lead_length
 
     def create_half_lead_lines(self):
-        i = self.method.lead_length / 2
+        if self.config.reverse_method:
+            i = (self.method.lead_length + 1) / 2
+        else:
+            i = (self.method.lead_length - 1) / 2
 
         while i < len(self.drawable_rows):
             self.shapes.append(create_path_object(np.array(
