@@ -1,5 +1,6 @@
 import requests
 import numpy as np
+from config import PlateConfig
 
 class Method:
     def __init__(self, complib_data) -> None:
@@ -44,16 +45,21 @@ class Method:
         return place_notation
 
     @staticmethod
-    def path_from_method(rows:list[str], bell:int, unit_width:float, unit_height:float):
+    def path_from_method(rows:list[str], bell:int, config:PlateConfig):
         bell = str(bell)
 
         path = []
 
         y = 0
         
-        for row in rows:
-            path.append(np.array([row.index(bell) * unit_width, y, 0]))
-            y -= unit_height
+        for i, row in enumerate(rows):
+            path.append(np.array([row.index(bell) * config.unit_width, y, 0]))
+
+            if i+1 < len(rows):
+                if rows[i].index(bell) == rows[i+1].index(bell):
+                    y -= config.unit_height * config.place_enlargement
+                else:
+                    y -= config.unit_height
         
         return np.array(path)
     

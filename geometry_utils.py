@@ -902,11 +902,6 @@ class Plate:
             case _:
                 raise Exception(f"Bad base_type of {self.config.base_type}")
         
-        # self.shapes.append(create_filleted_cuboid(
-        #     bottom_left,
-        #     top_right,
-        #     self.config.margin))
-
         self.shapes.append(create_base_from_template(
             file_name,
             bottom_left,
@@ -1027,11 +1022,9 @@ class Plate:
                 line_config=self.config.thin_line_config))
 
     def create_thick_line(self, bell:int):
-        path = Method.path_from_method(self.drawable_rows, bell, self.config.unit_width, self.config.unit_height)
+        path = Method.path_from_method(self.drawable_rows, bell, self.config)
+        path[:, 1] *= self.base_height / -np.min(path[:, 1]) # Normalise to fit on plate
         self.shapes.append(create_path_object(path, line_config=self.config.thick_line_config))
-        # plot_3d_path(path)
-        # plot_3d_path(smoothed_path)
-        # plot_3d_path(resampled_path)
     
     def create_lead_end_dots(self, bell:int):
         i = 0

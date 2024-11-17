@@ -10,13 +10,6 @@ config.plate_thickness = .4 # mm
 config.unit_width = 5 # mm
 config.unit_height = 2.5 # mm
 
-config.length_type = LengthTypes.SINGLE_LEAD
-
-config.treble_type = TrebleType.CROSS
-config.treble_line_config.cross_section = PathCrossSection.CYLINDER
-config.treble_line_config.height = config.thick_line_config.height
-config.treble_line_config.width = config.thick_line_config.width / 2
-
 config.title_text = TitleText.FULL
 
 config.reverse_method = False
