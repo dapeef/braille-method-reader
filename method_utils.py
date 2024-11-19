@@ -2,6 +2,7 @@ import requests
 import numpy as np
 from config import PlateConfig
 
+
 class Method:
     def __init__(self, complib_data) -> None:
         self.title:str = complib_data["title"]
@@ -99,6 +100,7 @@ def get_method_from_id(method_id: str) -> list[str]:
     data = make_api_call(f"https://api.complib.org/method/{method_id}/rows")
     
     return data
+
 
 if __name__ == "__main__":
     # print(get_method_id("cambridge"))

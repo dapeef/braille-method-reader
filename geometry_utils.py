@@ -1,12 +1,14 @@
-import numpy as np
 from typing import Tuple
-from stl import mesh
-import numpy.typing as npt
+
 import matplotlib.pyplot as plt
-from method_utils import Method
+import numpy as np
+import numpy.typing as npt
+from stl import mesh
+
 from braille_utils import str_to_dots
-from option_types import *
 from config import LineConfig, PlateConfig
+from method_utils import Method
+from option_types import *
 
 
 def normalize(v: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
@@ -1026,14 +1028,29 @@ class Plate:
         path[:, 1] *= self.base_height / -np.min(path[:, 1]) # Normalise to fit on plate
         self.shapes.append(create_path_object(path, line_config=self.config.thick_line_config))
     
-    def create_lead_end_dots(self, bell:int):
+    def create_lead_end_markers(self, bell:int):
         i = 0
 
         while i < len(self.drawable_rows):
-            self.shapes.append(create_hemisphere(np.array([
-                self.drawable_rows[i].index(str(bell)) * self.config.unit_width,
+            place = self.drawable_rows[i].index(str(bell))
+
+            position = np.array([
+                place * self.config.unit_width,
                 -i * self.config.unit_height,
-                0]), self.config.lead_end_dot_diameter, self.config.lead_end_dot_height))
+                0])
+
+            match self.config.lead_end_marker_type:
+                case LeadEndMarkerType.DOME:
+                    self.shapes.append(create_hemisphere(position, self.config.lead_end_marker_diameter, self.config.lead_end_marker_height))
+                case LeadEndMarkerType.T:
+                    left_position  = np.array([max(position[0] - self.config.unit_width, -self.config.lead_end_t_overflow), position[1], 0])
+                    right_position = np.array([min(position[0] + self.config.unit_width, self.base_width + self.config.lead_end_t_overflow), position[1], 0])
+
+                    self.shapes.append(create_path_object(np.array([left_position, right_position]), self.config.thick_line_config))
+                case LeadEndMarkerType.NONE:
+                    pass
+                case _:
+                    raise Exception("Bad lead_end_marker_option")
 
             i += self.method.lead_length
 
@@ -1075,4 +1092,4 @@ class Plate:
 
 
 if __name__ == "__main__":
-    import main
+    pass

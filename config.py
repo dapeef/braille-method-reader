@@ -19,6 +19,8 @@ class LineConfig:
     cross_section = PathCrossSection.CYLINDER
 
 class PlateConfig:
+    margin = 5 # mm - Border around the edges
+    base_type = BaseType.HOLE
     plate_thickness = .4 # mm
 
     unit_width = 5 # mm
@@ -47,8 +49,10 @@ class PlateConfig:
     half_lead_line_config.dot_separation = 2.5 # mm
     half_lead_line_config.cross_section = PathCrossSection.CYLINDER
 
-    lead_end_dot_diameter = 2 * thick_line_config.width # mm
-    lead_end_dot_height = 2 * thick_line_config.height # mm
+    lead_end_marker_type = LeadEndMarkerType.T
+    lead_end_marker_diameter = 2 * thick_line_config.width # mm
+    lead_end_marker_height = 2 * thick_line_config.height # mm
+    lead_end_t_overflow = .5 * margin
 
     length_type = LengthTypes.SINGLE_LEAD
 
@@ -57,9 +61,6 @@ class PlateConfig:
     title_position = TitlePos.CENTER_VERTICAL
     title_language = TitleLanguage.BOTH
     title_text = TitleText.SHORT
-
-    margin = 5 # mm - Border around the edges
-    base_type = BaseType.HOLE
 
     place_enlargement = 3 # How much longer to draw the places than the dodges
     # normalise_length = True # Whether to squash the line to fit in the same space as if place_enlargement = 1

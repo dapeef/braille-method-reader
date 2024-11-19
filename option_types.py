@@ -47,6 +47,10 @@ class TrebleType(Enum):
     SOLID = auto()
     NONE = auto()
 
+class LeadEndMarkerType(Enum):
+    DOME = auto()
+    T = auto()
+    NONE = auto()
 
 class PathCrossSection(Enum):
     CYLINDER = auto()
