@@ -50,7 +50,7 @@ class PlateConfig:
     half_lead_line_config.cross_section = PathCrossSection.CYLINDER
 
     lead_end_marker_type = LeadEndMarkerType.T
-    lead_end_marker_diameter = 2 * thick_line_config.width # mm
+    lead_end_marker_width = 2 * thick_line_config.width # mm
     lead_end_marker_height = 2 * thick_line_config.height # mm
     lead_end_t_overflow = .5 * margin
 
