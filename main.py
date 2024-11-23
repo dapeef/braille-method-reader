@@ -5,14 +5,10 @@ from method_utils import Method
 
 
 config = PlateConfig()
-
 config.plate_thickness = .4 # mm
-
 config.title_text = TitleText.FULL
-
-config.braille_config.dot_type = BrailleDotType.CYLINDER
-
-config.reverse_method = False
+config.braille_config.dot_type = BrailleDotType.DOME
+config.reverse_method = True
 
 
 # Plain bob 5 = 10550
@@ -24,19 +20,19 @@ config.reverse_method = False
 method = Method.create_from_complib_id("25093")
 # method.name = "C'bridge"
 
-# # Method plate
+for i in range(2, 9):
+    # Method plate
+    plate = Plate(method, config, i)
+    plate.create_base()
+    plate.create_vertical_lines()
+    plate.create_thick_line()
+    plate.create_lead_end_markers()
+    plate.create_treble_line()
+    plate.create_half_lead_lines()
+    plate.save_to_stl(f"./stl-files/mareham/{i}.stl")
+
+# # Title plate
 # plate = Plate(method, config)
 # plate.create_base()
-# plate.create_vertical_lines()
-# bell = 2
-# plate.create_thick_line(bell)
-# plate.create_lead_end_markers(bell)
-# plate.create_treble_line(blue_line_bell=bell)
-# plate.create_half_lead_lines()
-# plate.save_to_stl("./stl-files/mk-3/type-7.stl")
-
-# Title plate
-plate = Plate(method, config)
-plate.create_base()
-plate.create_title()
-plate.save_to_stl("stl-files/title.stl")
+# plate.create_title()
+# plate.save_to_stl("stl-files/mk-4/type-2.stl")

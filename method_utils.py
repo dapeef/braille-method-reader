@@ -46,7 +46,7 @@ class Method:
         return place_notation
 
     @staticmethod
-    def path_from_method(rows:list[str], bell:int, config:PlateConfig):
+    def path_from_method(rows: list[str], config: PlateConfig, bell: int):
         bell = str(bell)
 
         path = []
@@ -108,6 +108,6 @@ if __name__ == "__main__":
 
     cambridge = Method(data)
     rows = cambridge.get_first_lead()
-    path = Method.path_from_method(rows, 2, 10, 10)
+    path = Method.path_from_method(rows, 10, 2)
 
     pass

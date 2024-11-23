@@ -6,9 +6,10 @@ from option_types import *
 
 
 class Plate:
-    def __init__(self, method: Method, config: PlateConfig) -> None:
+    def __init__(self, method: Method, config: PlateConfig, bell: int=2) -> None:
         self.method = method
         self.config = config
+        self.bell = bell
 
         self.base_width = self.config.unit_width * (self.method.stage - 1)
         match self.config.length_type:
@@ -22,10 +23,13 @@ class Plate:
         if self.config.reverse_method:
             self.drawable_rows = self.drawable_rows[::-1]
 
+        self.path = Method.path_from_method(self.drawable_rows, self.config, self.bell)
+        self.path[:, 1] *= self.base_height / -np.min(self.path[:, 1])  # Normalise to fit on plate
+
         self.shapes = []
 
     def create_base(self):
-        # Base plate
+        # Baseplate
         bottom_left = np.array([
             -self.config.margin,
             -self.base_height - self.config.margin,
@@ -133,12 +137,12 @@ class Plate:
                                                            self.config.braille_config.dot_diameter,
                                                            self.config.braille_config.dot_height))
 
-    def create_place_bell_label(self, bell: int | str):
+    def create_place_bell_label(self):
         if self.config.title_position == TitlePos.NONE:
             print("Warning: Place bell label creation called, but TITLE_POSITION is NONE")
 
         else:
-            text = str(bell)
+            text = str(self.bell)
 
             match self.config.title_position:
                 case TitlePos.TOP:
@@ -181,16 +185,14 @@ class Plate:
                                     0]) for x in range(len(self.drawable_rows))]),
                 line_config=self.config.thin_line_config))
 
-    def create_thick_line(self, bell: int):
-        path = Method.path_from_method(self.drawable_rows, bell, self.config)
-        path[:, 1] *= self.base_height / -np.min(path[:, 1])  # Normalise to fit on plate
-        self.shapes.append(create_path_object(path, line_config=self.config.thick_line_config))
+    def create_thick_line(self):
+        self.shapes.append(create_path_object(self.path, line_config=self.config.thick_line_config))
 
-    def create_lead_end_markers(self, bell: int):
+    def create_lead_end_markers(self):
         i = 0
 
         while i < len(self.drawable_rows):
-            place = self.drawable_rows[i].index(str(bell))
+            place = self.drawable_rows[i].index(str(self.bell))
 
             position = np.array([
                 place * self.config.unit_width,
@@ -219,29 +221,28 @@ class Plate:
 
     def create_half_lead_lines(self):
         if self.config.reverse_method:
-            i = (self.method.lead_length + 1) / 2
+            i = int(self.method.lead_length/2)
         else:
-            i = (self.method.lead_length - 1) / 2
+            i = int(self.method.lead_length/2 - 1)
 
         while i < len(self.drawable_rows):
             self.shapes.append(create_path_object(np.array(
                 [np.array([x / (self.method.stage - 1) * self.base_width,
-                           -i * self.config.unit_height,
+                           (self.path[i][1] + self.path[i+1][1]) / 2,
                            0]) for x in range(self.method.stage)]),
                 line_config=self.config.half_lead_line_config))
 
             i += self.method.lead_length
 
-    def create_treble_line(self, treble_bell: int = 1, blue_line_bell: int | None = None):
+    def create_treble_line(self, treble_bell: int = 1):
         match self.config.treble_type:
             case TrebleType.SOLID:
-                path = Method.path_from_method(self.drawable_rows, treble_bell, self.config.unit_width,
-                                               self.config.unit_height)
+                path = Method.path_from_method(self.drawable_rows, self.config, treble_bell)
                 self.shapes.append(create_path_object(path, line_config=self.config.treble_line_config))
 
             case TrebleType.CROSS:
                 paths = Method.passing_point_paths_from_method(self.drawable_rows,
-                                                               blue_line_bell,
+                                                               self.bell,
                                                                treble_bell,
                                                                self.config.unit_width,
                                                                self.config.unit_height)
