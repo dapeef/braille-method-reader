@@ -1,3 +1,5 @@
+from braille_utils import str_to_dots
+from config import PlateConfig
 from geometry_utils import *
 from method_utils import Method
 from option_types import *
@@ -113,6 +115,7 @@ class Plate:
                     alignment_y = AlignmentY.CENTER
                     max_length = self.base_height
 
+
             points = str_to_dots(title_text, self.config.braille_config, max_length)
             points = align_points(points, alignment_x)
             points = align_points(points, alignment_y)
@@ -120,9 +123,15 @@ class Plate:
             points += start_position
 
             for point in points:
-                self.shapes.append(create_hemisphere(point,
-                                                     self.config.braille_config.dot_diameter,
-                                                     self.config.braille_config.dot_height))
+                match self.config.braille_config.dot_type:
+                    case BrailleDotType.DOME:
+                        self.shapes.append(create_hemisphere(point,
+                                                           self.config.braille_config.dot_diameter,
+                                                           self.config.braille_config.dot_height))
+                    case BrailleDotType.CYLINDER:
+                        self.shapes.append(create_cylinder(point,
+                                                           self.config.braille_config.dot_diameter,
+                                                           self.config.braille_config.dot_height))
 
     def create_place_bell_label(self, bell: int | str):
         if self.config.title_position == TitlePos.NONE:

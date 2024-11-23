@@ -5,9 +5,7 @@ import numpy as np
 import numpy.typing as npt
 from stl import mesh
 
-from braille_utils import str_to_dots
-from config import LineConfig, PlateConfig
-from method_utils import Method
+from config import LineConfig
 from option_types import *
 
 
@@ -22,7 +20,6 @@ def select_vertices(mesh, x_range=None, y_range=None, z_range=None):
     Select vertices based on coordinate ranges.
     
     Args:
-        plate_mesh: numpy-stl mesh object
         x_range: tuple of (min, max) or conditions ('>', '<', '>=', '<=') with value
                 e.g., ('>', 0) or (0, 100) or None for no x constraint
         y_range: same format as x_range
@@ -66,7 +63,6 @@ def translate_vertices(mesh, vertices, translation):
     Translate selected vertices by a vector.
     
     Args:
-        plate_mesh: numpy-stl mesh object
         vertices: List of (triangle_idx, vertex_idx) tuples
         translation: numpy array [x, y, z] of translation values
     """
@@ -79,7 +75,6 @@ def scale_vertices(mesh, vertices, scale_factor, origin=np.array([0, 0, 0])):
     Scale selected vertices about a point (default is origin).
     
     Args:
-        plate_mesh: numpy-stl mesh object
         vertices: List of (triangle_idx, vertex_idx) tuples
         scale_factor: float or [x, y, z] array for non-uniform scaling
         origin: Point to scale about, defaults to [0, 0, 0]
@@ -101,6 +96,86 @@ def scale_vertices(mesh, vertices, scale_factor, origin=np.array([0, 0, 0])):
     
     mesh.update_normals()
 
+
+def create_cylinder(
+        position: np.ndarray,
+        diameter: float,
+        height: float,
+        resolution: int = 20
+) -> mesh.Mesh:
+    """
+    Create a cylinder STL mesh with axis parallel to z-axis.
+
+    Args:
+        position (np.ndarray): Center position of cylinder base (x, y, z)
+        diameter (float): Diameter of the cylinder
+        height (float): Height of the cylinder
+        resolution (int, optional): Number of segments around the circumference. Defaults to 10.
+
+    Returns:
+        mesh.Mesh: STL mesh object of the cylinder
+    """
+    # Convert position to numpy array if it isn't already
+    position = np.array(position, dtype=float)
+
+    # Calculate radius from diameter
+    radius = diameter / 2.0
+
+    # Calculate vertices around the circumference
+    angles = np.linspace(0, 2 * np.pi, resolution, endpoint=False)
+
+    # Initialize array to hold all triangles
+    # Number of triangles = 2 * resolution (for top and bottom faces) + 2 * resolution (for the cylinder wall)
+    triangles = np.zeros((4 * resolution, 3, 3))
+
+    # Generate vertices
+    bottom_center = position
+    top_center = position + np.array([0, 0, height])
+
+    # Create bottom face triangles
+    for i in range(resolution):
+        current_angle = angles[i]
+        next_angle = angles[(i + 1) % resolution]
+
+        current_point = position + np.array([radius * np.cos(current_angle), radius * np.sin(current_angle), 0])
+        next_point = position + np.array([radius * np.cos(next_angle), radius * np.sin(next_angle), 0])
+
+        triangles[i] = [bottom_center, next_point, current_point]
+
+    # Create top face triangles
+    for i in range(resolution):
+        current_angle = angles[i]
+        next_angle = angles[(i + 1) % resolution]
+
+        current_point = position + np.array([radius * np.cos(current_angle), radius * np.sin(current_angle), height])
+        next_point = position + np.array([radius * np.cos(next_angle), radius * np.sin(next_angle), height])
+
+        triangles[resolution + i] = [top_center, current_point, next_point]
+
+    # Create wall triangles
+    for i in range(resolution):
+        current_angle = angles[i]
+        next_angle = angles[(i + 1) % resolution]
+
+        current_bottom = position + np.array([radius * np.cos(current_angle), radius * np.sin(current_angle), 0])
+        next_bottom = position + np.array([radius * np.cos(next_angle), radius * np.sin(next_angle), 0])
+        current_top = position + np.array([radius * np.cos(current_angle), radius * np.sin(current_angle), height])
+        next_top = position + np.array([radius * np.cos(next_angle), radius * np.sin(next_angle), height])
+
+        # First triangle of the wall segment
+        triangles[2 * resolution + 2 * i] = [current_bottom, next_bottom, next_top]
+        # Second triangle of the wall segment
+        triangles[2 * resolution + 2 * i + 1] = [current_bottom, next_top, current_top]
+
+    # Create mesh
+    cylinder = mesh.Mesh(np.zeros(4 * resolution, dtype=mesh.Mesh.dtype))
+
+    # Transfer triangles to mesh object
+    for i, triangle in enumerate(triangles):
+        for j in range(3):
+            cylinder.vectors[i][j] = triangle[j]
+
+    return cylinder
 
 def create_cuboid(corner1:np.ndarray, corner2:np.ndarray) -> mesh.Mesh:
     # Define the 8 vertices of the cube
@@ -502,10 +577,11 @@ def create_path_object(path: np.ndarray, line_config:LineConfig,
     Creates a half-cylinder STL mesh oriented with its axis horizontally and its flat face on z=0.
     
     Args:
-        points (np.ndarray): An array of 3D points defining the path (shape: [N, 3]).
-        thickness (float): The width of the semi-cylinder.
-        height (float): The height of the semi-cylinder.
-        theta_resolution (int): Number of angular subdivisions around the circumference.
+        cap_height:
+        cap_diameter:
+        resolution: Resolution of cylinder
+        line_config: Configuration object for the path object
+        path: np array of points which describe the path
         cap_style (string): Type of end to put on the tube. Choose from "dome" or "none".
     
     Returns:

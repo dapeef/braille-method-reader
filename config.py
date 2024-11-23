@@ -12,6 +12,8 @@ class BrailleConfig:
 
     include_caps = True # Should the braille display capital letters, or should they all be lower
 
+    dot_type = BrailleDotType.CYLINDER
+
 class LineConfig:
     width = 1.5 # mm
     height = 1.5 # mm
@@ -28,7 +30,7 @@ class PlateConfig:
 
     thick_line_config = LineConfig()
     thick_line_config.width = 1.5 # mm
-    thick_line_config.height = 1.5 # mm
+    thick_line_config.height = 1 # mm
     thick_line_config.cross_section = PathCrossSection.CYLINDER
 
     thin_line_config = LineConfig()
@@ -49,7 +51,7 @@ class PlateConfig:
     half_lead_line_config.dot_separation = 2.5 # mm
     half_lead_line_config.cross_section = PathCrossSection.CYLINDER
 
-    lead_end_marker_type = LeadEndMarkerType.T
+    lead_end_marker_type = LeadEndMarkerType.NONE
     lead_end_marker_width = 2 * thick_line_config.width # mm
     lead_end_marker_height = 2 * thick_line_config.height # mm
     lead_end_t_overflow = .5 * margin
@@ -62,7 +64,7 @@ class PlateConfig:
     title_language = TitleLanguage.BOTH
     title_text = TitleText.SHORT
 
-    place_enlargement = 3 # How much longer to draw the places than the dodges
+    place_enlargement = 2 # How much longer to draw the places than the dodges
     # normalise_length = True # Whether to squash the line to fit in the same space as if place_enlargement = 1
 
     braille_config = BrailleConfig()

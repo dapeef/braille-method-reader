@@ -56,3 +56,7 @@ class PathCrossSection(Enum):
     CYLINDER = auto()
     RECTANGLE = auto()
     DOTTED = auto()
+
+class BrailleDotType(Enum):
+    DOME = auto()
+    CYLINDER = auto()
