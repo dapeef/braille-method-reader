@@ -17,7 +17,8 @@ config.reverse_method = True
 # Cambridge 10 = 21250
 # Double Norwich 8 = 12470
 # Mareham 8 = 25093
-method = Method.create_from_complib_id("25093")
+# Ytterbium 8 = 16435
+method = Method.create_from_complib_id("16435")
 # method.name = "C'bridge"
 
 for i in range(2, 9):
@@ -29,10 +30,10 @@ for i in range(2, 9):
     plate.create_lead_end_markers()
     plate.create_treble_line()
     plate.create_half_lead_lines()
-    plate.save_to_stl(f"./stl-files/mareham/{i}.stl")
+    plate.save_to_stl(f"./stl-files/ytterbium/{i}.stl")
 
-# # Title plate
-# plate = Plate(method, config)
-# plate.create_base()
-# plate.create_title()
-# plate.save_to_stl("stl-files/mk-4/type-2.stl")
+# Title plate
+plate = Plate(method, config)
+plate.create_base()
+plate.create_title()
+plate.save_to_stl("stl-files/ytterbium/title.stl")
